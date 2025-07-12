@@ -1,61 +1,35 @@
-// ========== 3c-quiz-admin: Minimal Drag/Drop Quiz Editor ==========
+// ========== 3c-quiz-admin: Flexible Drag/Drop Quiz Editor with Smart Image Suggestions ==========
 
 const CANVAS_W = 360, CANVAS_H = 640;
-const QUIZ_PAGE_TYPES = [
-  { key: "cover", label: "Cover" },
-  { key: "questions", label: "Questions" },
-  { key: "results", label: "Results" }
+const BLOCK_TYPES = [
+  { type: "title", label: "Title", text: "Title goes here", color: "#222222", size: 24 },
+  { type: "desc", label: "Description", text: "Description...", color: "#444444", size: 18 },
+  { type: "question", label: "Question", text: "Question text?", color: "#222222", size: 18 },
+  { type: "answer", label: "Answer", text: "Answer option", color: "#003366", size: 16 },
+  { type: "result", label: "Result", text: "Result text...", color: "#1B5E20", size: 20 }
 ];
-// Define default text blocks for each page type
-const BLOCK_TEMPLATES = {
-  cover: [
-    { type: "title", label: "Title", text: "Quiz Title", x: 30, y: 150, w: 300, h: 50, size: 24, color: "#222222" },
-    { type: "desc", label: "Description", text: "Quiz description paragraph...", x: 30, y: 210, w: 300, h: 80, size: 18, color: "#444444" }
-  ],
-  questions: [
-    { type: "question", label: "Question", text: "What is your question?", x: 24, y: 110, w: 310, h: 44, size: 18, color: "#222222" },
-    { type: "answerA", label: "Answer A", text: "Answer option A", x: 24, y: 180, w: 310, h: 38, size: 16, color: "#003366" },
-    { type: "answerB", label: "Answer B", text: "Answer option B", x: 24, y: 230, w: 310, h: 38, size: 16, color: "#003366" },
-    { type: "answerC", label: "Answer C", text: "Answer option C", x: 24, y: 280, w: 310, h: 38, size: 16, color: "#003366" },
-    { type: "answerD", label: "Answer D", text: "Answer option D", x: 24, y: 330, w: 310, h: 38, size: 16, color: "#003366" }
-  ],
-  results: [
-    { type: "resultTitle", label: "Result Title", text: "You got A!", x: 30, y: 180, w: 300, h: 44, size: 24, color: "#1B5E20" },
-    { type: "resultDesc", label: "Result Desc", text: "Result description goes here...", x: 30, y: 240, w: 300, h: 80, size: 18, color: "#2E7D32" }
-  ]
-};
 
 let quizzes = loadQuizzes();
 let currentQuizIdx = 0;
-let currentPageType = 'cover';
-let currentPageIdx = 0;
+let selectedPageIdx = 0;
 let selectedBlockIdx = -1;
 
 function loadQuizzes() {
-  let q = localStorage.getItem('3c-quiz-admin-quizzes');
+  let q = localStorage.getItem('3c-quiz-admin-quizzes-v2');
   if (!q) return [];
   try { return JSON.parse(q); } catch { return []; }
 }
 function saveQuizzes() {
-  localStorage.setItem('3c-quiz-admin-quizzes', JSON.stringify(quizzes));
+  localStorage.setItem('3c-quiz-admin-quizzes-v2', JSON.stringify(quizzes));
 }
 
 function blankQuiz() {
-  // Default quiz with 5 questions and 4 results
   return {
     id: nextQuizId(),
     title: "New Quiz",
-    pages: {
-      cover: [{ bg: "static/cover.png", blocks: JSON.parse(JSON.stringify(BLOCK_TEMPLATES.cover)) }],
-      questions: Array.from({length: 5}).map((_,i) => ({
-        bg: `static/${i+1}.png`,
-        blocks: JSON.parse(JSON.stringify(BLOCK_TEMPLATES.questions))
-      })),
-      results: Array.from({length: 4}).map((_,i) => ({
-        bg: `static/${["a","b","c","d"][i]}.png`,
-        blocks: JSON.parse(JSON.stringify(BLOCK_TEMPLATES.results))
-      }))
-    }
+    pages: [
+      // Each page: { bg: "static/1.png", blocks: [] }
+    ]
   }
 }
 function nextQuizId() {
@@ -66,77 +40,116 @@ function nextQuizId() {
   return `quiz.${String(ids.length+1).padStart(2,"0")}`;
 }
 
+// Smart image suggestion logic
+function suggestImageForPage(pages) {
+  // Find last bg filename, suggest next in sequence
+  if (!pages.length) return "static/1.png";
+  let last = pages[pages.length-1].bg || "";
+  let match = last.match(/^static\/([a-zA-Z]*)(\d*|[a-z]*)\.png$/);
+  if (!match) return "static/1.png";
+  let [_, prefix, suffix] = match;
+  // e.g., 3a, 3b, 5a...
+  if (/^\d+$/.test(suffix)) {
+    // e.g., 1.png, 2.png, 3.png
+    let n = parseInt(suffix) + 1;
+    return `static/${prefix}${n}.png`;
+  } else if (/^[a-zA-Z]$/.test(suffix)) {
+    // e.g., 3a.png, 3b.png
+    let char = suffix.toLowerCase();
+    let nextChar = String.fromCharCode(char.charCodeAt(0)+1);
+    return `static/${prefix}${nextChar}.png`;
+  } else if (/^\d+[a-zA-Z]$/.test(suffix)) {
+    // e.g., 5a, 5b: handle as needed
+    let num = suffix.match(/^(\d+)/)[1];
+    let char = suffix.match(/[a-zA-Z]$/)[0];
+    let nextChar = String.fromCharCode(char.charCodeAt(0)+1);
+    return `static/${prefix}${num}${nextChar}.png`;
+  }
+  return "static/1.png";
+}
+
 function renderApp() {
   const app = document.getElementById('app');
+  const quiz = quizzes[currentQuizIdx];
+  const pages = quiz.pages;
+  const page = pages[selectedPageIdx] || {};
+
   app.innerHTML = `
-    <div class="header">
-      <h1>3c-quiz-admin</h1>
-      <button onclick="onNewQuiz()">New Quiz</button>
-    </div>
-    <div class="quiz-list">
-      <strong>Quizzes:</strong>
-      <ul>
-        ${quizzes.map((q,i) => `
-          <li>
-            <button onclick="onSelectQuiz(${i})"${i===currentQuizIdx?' style="font-weight:bold;"':''}>${q.id}</button>
-            <button onclick="onDeleteQuiz(${i})" class="danger">Delete</button>
-          </li>
-        `).join('')}
-      </ul>
-    </div>
-    <div>
-      <strong>Edit Quiz:</strong> ${quizzes[currentQuizIdx]?.id || ''}
-      <input type="text" value="${quizzes[currentQuizIdx]?.title||''}" style="margin-left:16px;width:160px;" 
-        onchange="onQuizTitleChange(this.value)">
-    </div>
-    <div style="margin:14px 0;">
-      ${QUIZ_PAGE_TYPES.map(pt => `
-        <button onclick="onSelectPageType('${pt.key}')"${pt.key===currentPageType?' style="font-weight:bold;"':''}>${pt.label}</button>
-      `).join('')}
-      &nbsp;
-      <button onclick="onPrevPage()" ${currentPageIdx===0?'disabled':''}>&lt; Prev</button>
-      <span> Page ${currentPageIdx+1} / ${getPages().length} </span>
-      <button onclick="onNextPage()" ${currentPageIdx===getPages().length-1?'disabled':''}>Next &gt;</button>
-      &nbsp;
-      <button onclick="onAddPage()" ${currentPageType==="cover"||getPages().length>=8?'disabled':''}>Add Page</button>
-      <button onclick="onRemovePage()" ${getPages().length<=1?'disabled':''}>Remove Page</button>
-    </div>
-    <div class="editor-canvas-wrap">
-      <div>
-        ${renderCanvas()}
+    <div class="sidebar">
+      <div class="page-list">
+        <strong>Pages</strong>
+        <ul>
+          ${pages.map((p, i) => `
+            <li>
+              <button class="${i===selectedPageIdx?'active':''}" onclick="onSelectPage(${i})">
+                <img class="page-img-thumb" src="${p.bg || ''}" alt="">
+                <span class="img-filename">${(p.bg||'').replace('static/','')}</span>
+              </button>
+              <button onclick="onRemovePage(${i})" class="danger" style="font-size:0.95em;padding:2px 7px;">✕</button>
+            </li>
+          `).join('')}
+        </ul>
+        <div class="page-actions">
+          <button onclick="onAddPage()">+ Add Page</button>
+          <button onclick="onMovePageUp()" ${selectedPageIdx===0?'disabled':''}>&uarr;</button>
+          <button onclick="onMovePageDown()" ${selectedPageIdx===pages.length-1?'disabled':''}>&darr;</button>
+        </div>
       </div>
-      <div>
-        ${renderBlockControls()}
-        <div class="save-area">
-          <button onclick="onSaveQuiz()">💾 Save Quiz</button>
-          <button onclick="onExportQuiz()">⬇ Export JSON</button>
-          <button onclick="onImportQuiz()">⬆ Import JSON</button>
+      <div class="block-controls">
+        <strong>Add Block</strong>
+        ${BLOCK_TYPES.map(b => `
+          <button onclick="onAddBlock('${b.type}')">${b.label}</button>
+        `).join('')}
+      </div>
+    </div>
+    <div class="mainpanel">
+      <div class="header">
+        <h1>3c-quiz-admin</h1>
+        <button onclick="onNewQuiz()">New Quiz</button>
+        <div style="flex:1"></div>
+        <span><b>ID:</b> ${quiz.id}</span>
+        <input type="text" value="${quiz.title}" style="margin-left:12px;width:180px;" onchange="onQuizTitleChange(this.value)">
+      </div>
+      <div style="margin-bottom:16px;">
+        <button onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''}>&lt; Prev</button>
+        <span style="margin:0 12px;">Page ${selectedPageIdx+1} / ${pages.length}</span>
+        <button onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''}>Next &gt;</button>
+      </div>
+      <div class="editor-canvas-wrap">
+        <div>
+          ${renderCanvas(page)}
+          <div style="margin:6px 0;">
+            <label>Background:
+              <input type="text" value="${page.bg||''}" style="width:160px;" onchange="onBgChange(this.value)">
+            </label>
+            <button onclick="onPickBg()">Pick Image</button>
+          </div>
+        </div>
+        <div>
+          ${renderBlockSettings(page)}
+          <div class="save-area">
+            <button onclick="onSaveQuiz()">💾 Save Quiz</button>
+            <button onclick="onExportQuiz()">⬇ Export JSON</button>
+            <button onclick="onImportQuiz()">⬆ Import JSON</button>
+          </div>
         </div>
       </div>
     </div>
   `;
   window.setTimeout(attachCanvasEvents, 10);
 }
-function getPages() {
-  let qz = quizzes[currentQuizIdx];
-  if (!qz) return [];
-  return qz.pages[currentPageType] || [];
-}
-function getPage() {
-  return getPages()[currentPageIdx];
-}
-function renderCanvas() {
-  let page = getPage();
+
+function renderCanvas(page) {
   if (!page) return `<div class="editor-canvas"></div>`;
   return `
     <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;">
-      <img class="bg" src="${page.bg}" alt="bg">
-      ${page.blocks.map((b,bi) => `
-        <div class="text-block${bi===selectedBlockIdx?' selected':''}" 
+      <img class="bg" src="${page.bg||''}" alt="bg">
+      ${(page.blocks||[]).map((b,bi) => `
+        <div class="text-block${bi===selectedBlockIdx?' selected':''}"
           style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px;font-size:${b.size}px;color:${b.color};"
           data-idx="${bi}">
-          <span class="block-label">${b.label}</span>
-          <div class="block-content" contenteditable="true" 
+          <span class="block-label">${b.label||b.type}</span>
+          <div class="block-content" contenteditable="true"
             oninput="onBlockTextInput(${bi},this.innerText)"
             spellcheck="false"
             style="font-size:inherit;color:inherit;width:100%;height:100%;">
@@ -145,80 +158,162 @@ function renderCanvas() {
         </div>
       `).join('')}
     </div>
-    <div style="margin:6px 0;">
-      <label>Background: 
-        <input type="text" value="${page.bg}" style="width:160px;" 
-          onchange="onBgChange(this.value)">
-      </label>
-      <button onclick="onPickBg()">Pick Image</button>
-    </div>
   `;
 }
-function renderBlockControls() {
-  let page = getPage();
-  if (!page) return "";
-  let b = page.blocks[selectedBlockIdx];
+function renderBlockSettings(page) {
+  let b = (page.blocks||[])[selectedBlockIdx];
+  if (!b) return `<div style="margin-top:20px;">Select a block to edit its settings here.</div>`;
   return `
-    <div style="margin-bottom:8px;">${page.blocks.map((block,bi) => `
-      <button onclick="onSelectBlock(${bi})"${selectedBlockIdx===bi?' style="font-weight:bold;"':''}>
-        ${block.label}
-      </button>
-    `).join('')}
-      <button onclick="onAddBlock()">+ Add Block</button>
-      <button onclick="onRemoveBlock()" ${selectedBlockIdx===-1?'disabled':''}>Remove Block</button>
+    <div style="margin-bottom:8px;">
+      <button onclick="onSelectBlock(${selectedBlockIdx})" style="font-weight:bold;">${b.label||b.type}</button>
+      <button onclick="onRemoveBlock()" class="danger" style="margin-left:10px;">Remove Block</button>
     </div>
-    ${b ? `
-      <div class="block-controls">
-        <label>Font Size: 
-          <input type="number" min="10" max="64" value="${b.size}" style="width:48px;"
-            onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
-        </label>
-        <label>Color: 
-          <input type="color" value="${b.color}"
-            onchange="onBlockColor(${selectedBlockIdx},this.value)">
-        </label>
-        <label>X: 
-          <input type="number" min="0" max="${CANVAS_W-20}" value="${b.x}" style="width:48px;"
-            onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
-        </label>
-        <label>Y: 
-          <input type="number" min="0" max="${CANVAS_H-20}" value="${b.y}" style="width:48px;"
-            onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
-        </label>
-        <label>W: 
-          <input type="number" min="24" max="${CANVAS_W}" value="${b.w}" style="width:48px;"
-            onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
-        </label>
-        <label>H: 
-          <input type="number" min="24" max="${CANVAS_H}" value="${b.h}" style="width:48px;"
-            onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
-        </label>
-      </div>
-    ` : ""}
+    <div class="block-settings">
+      <label>Font Size: 
+        <input type="number" min="10" max="64" value="${b.size}" style="width:48px;"
+          onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
+      </label>
+      <label>Color: 
+        <input type="color" value="${b.color}"
+          onchange="onBlockColor(${selectedBlockIdx},this.value)">
+      </label>
+      <label>X: 
+        <input type="number" min="0" max="${CANVAS_W-20}" value="${b.x}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
+      </label>
+      <label>Y: 
+        <input type="number" min="0" max="${CANVAS_H-20}" value="${b.y}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
+      </label>
+      <label>W: 
+        <input type="number" min="24" max="${CANVAS_W}" value="${b.w}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
+      </label>
+      <label>H: 
+        <input type="number" min="24" max="${CANVAS_H}" value="${b.h}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
+      </label>
+    </div>
   `;
 }
 
-// -- Event handlers --
-window.onNewQuiz = function() {
-  quizzes.push(blankQuiz());
-  currentQuizIdx = quizzes.length-1;
-  currentPageType = "cover";
-  currentPageIdx = 0;
+// --- Page actions
+window.onAddPage = function() {
+  let quiz = quizzes[currentQuizIdx];
+  let suggestion = suggestImageForPage(quiz.pages);
+  quiz.pages.push({ bg: suggestion, blocks: [] });
+  selectedPageIdx = quiz.pages.length-1;
   selectedBlockIdx = -1;
   saveQuizzes();
   renderApp();
 }
-window.onSelectQuiz = function(idx) {
-  currentQuizIdx = idx;
-  currentPageType = "cover";
-  currentPageIdx = 0;
+window.onRemovePage = function(idx) {
+  let quiz = quizzes[currentQuizIdx];
+  if (quiz.pages.length <= 1) return;
+  quiz.pages.splice(idx,1);
+  if (selectedPageIdx >= quiz.pages.length) selectedPageIdx = quiz.pages.length-1;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+}
+window.onSelectPage = function(idx) {
+  selectedPageIdx = idx;
   selectedBlockIdx = -1;
   renderApp();
 }
-window.onDeleteQuiz = function(idx) {
-  if (!confirm("Delete this quiz?")) return;
-  quizzes.splice(idx,1);
-  if (currentQuizIdx >= quizzes.length) currentQuizIdx = quizzes.length-1;
+window.onMovePageUp = function() {
+  let quiz = quizzes[currentQuizIdx];
+  if (selectedPageIdx === 0) return;
+  [quiz.pages[selectedPageIdx-1], quiz.pages[selectedPageIdx]] = [quiz.pages[selectedPageIdx], quiz.pages[selectedPageIdx-1]];
+  selectedPageIdx--;
+  saveQuizzes();
+  renderApp();
+}
+window.onMovePageDown = function() {
+  let quiz = quizzes[currentQuizIdx];
+  if (selectedPageIdx >= quiz.pages.length-1) return;
+  [quiz.pages[selectedPageIdx+1], quiz.pages[selectedPageIdx]] = [quiz.pages[selectedPageIdx], quiz.pages[selectedPageIdx+1]];
+  selectedPageIdx++;
+  saveQuizzes();
+  renderApp();
+}
+window.onPrevPage = function() {
+  if (selectedPageIdx > 0) {
+    selectedPageIdx--; selectedBlockIdx = -1; renderApp();
+  }
+}
+window.onNextPage = function() {
+  let quiz = quizzes[currentQuizIdx];
+  if (selectedPageIdx < quiz.pages.length-1) {
+    selectedPageIdx++; selectedBlockIdx = -1; renderApp();
+  }
+}
+
+// --- Block controls
+window.onAddBlock = function(type) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let tpl = BLOCK_TYPES.find(b => b.type===type);
+  const blockCount = (page.blocks||[]).length;
+  page.blocks = page.blocks||[];
+  // Let each type be named/labelled uniquely per page
+  page.blocks.push({
+    type,
+    label: tpl.label,
+    text: tpl.text,
+    x: 60+blockCount*10,
+    y: 90+blockCount*30,
+    w: 240,
+    h: 38,
+    size: tpl.size,
+    color: tpl.color
+  });
+  selectedBlockIdx = page.blocks.length-1;
+  saveQuizzes();
+  renderApp();
+}
+window.onRemoveBlock = function() {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  if (selectedBlockIdx===-1) return;
+  page.blocks.splice(selectedBlockIdx,1);
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+}
+window.onSelectBlock = function(idx) {
+  selectedBlockIdx = idx;
+  renderApp();
+}
+
+window.onBlockTextInput = function(bi, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi].text = val;
+  saveQuizzes();
+}
+window.onBlockFontSize = function(bi, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi].size = parseInt(val)||18;
+  saveQuizzes();
+  renderApp();
+}
+window.onBlockColor = function(bi, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi].color = val;
+  saveQuizzes();
+  renderApp();
+}
+window.onBlockPos = function(bi, prop, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi][prop] = parseInt(val)||0;
+  saveQuizzes();
+  renderApp();
+}
+
+// --- Quiz controls
+window.onNewQuiz = function() {
+  quizzes.push(blankQuiz());
+  currentQuizIdx = quizzes.length-1;
+  selectedPageIdx = 0;
+  selectedBlockIdx = -1;
   saveQuizzes();
   renderApp();
 }
@@ -226,104 +321,22 @@ window.onQuizTitleChange = function(val) {
   quizzes[currentQuizIdx].title = val;
   saveQuizzes();
 }
-window.onSelectPageType = function(type) {
-  currentPageType = type;
-  currentPageIdx = 0;
-  selectedBlockIdx = -1;
-  renderApp();
-}
-window.onPrevPage = function() {
-  if (currentPageIdx > 0) {
-    currentPageIdx--; selectedBlockIdx = -1; renderApp();
-  }
-}
-window.onNextPage = function() {
-  if (currentPageIdx < getPages().length-1) {
-    currentPageIdx++; selectedBlockIdx = -1; renderApp();
-  }
-}
-window.onAddPage = function() {
-  let qz = quizzes[currentQuizIdx];
-  if (!qz) return;
-  let key = currentPageType;
-  let arr = qz.pages[key];
-  let n = arr.length+1;
-  let bg = key==="questions" ? `static/${n}.png`
-        : key==="results" ? `static/${["a","b","c","d","e","f","g","h"][n-1]}.png`
-        : "";
-  arr.push({ bg: bg, blocks: JSON.parse(JSON.stringify(BLOCK_TEMPLATES[key])) });
-  currentPageIdx = arr.length-1;
-  selectedBlockIdx = -1;
-  saveQuizzes();
-  renderApp();
-}
-window.onRemovePage = function() {
-  let arr = getPages();
-  if (arr.length <= 1) return;
-  arr.splice(currentPageIdx, 1);
-  if (currentPageIdx >= arr.length) currentPageIdx = arr.length-1;
-  selectedBlockIdx = -1;
-  saveQuizzes();
-  renderApp();
-}
+// --- BG image
 window.onBgChange = function(val) {
-  getPage().bg = val;
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.bg = val;
   saveQuizzes();
   renderApp();
 }
 window.onPickBg = function() {
-  let imgs = Array.from(document.querySelectorAll('.bg')).map(img => img.src);
-  let files = Array.from(document.querySelectorAll('img.bg')).map(i => i.src.split('/').pop());
-  let val = prompt(`Enter background image filename (in static/):\nCurrent: ${getPage().bg}\nAvailable: ${files.join(", ")}`);
-  if (val) { getPage().bg = "static/" + val.replace(/^static\//,''); saveQuizzes(); renderApp(); }
+  let val = prompt(`Enter background image filename (in static/):\nCurrent: ${quizzes[currentQuizIdx].pages[selectedPageIdx].bg}`);
+  if (val) {
+    quizzes[currentQuizIdx].pages[selectedPageIdx].bg = "static/" + val.replace(/^static\//,'');
+    saveQuizzes(); renderApp();
+  }
 }
-window.onSelectBlock = function(idx) {
-  selectedBlockIdx = idx;
-  renderApp();
-}
-window.onAddBlock = function() {
-  let pg = getPage(), t = currentPageType;
-  pg.blocks.push({
-    type: `custom${pg.blocks.length+1}`,
-    label: `Block ${pg.blocks.length+1}`,
-    text: "New text block",
-    x: 60, y: 80+pg.blocks.length*30, w: 220, h: 32, size: 18, color: "#444444"
-  });
-  selectedBlockIdx = pg.blocks.length-1;
-  saveQuizzes();
-  renderApp();
-}
-window.onRemoveBlock = function() {
-  let pg = getPage();
-  if (selectedBlockIdx===-1) return;
-  pg.blocks.splice(selectedBlockIdx,1);
-  selectedBlockIdx = -1;
-  saveQuizzes();
-  renderApp();
-}
-window.onBlockTextInput = function(bi, val) {
-  let pg = getPage();
-  pg.blocks[bi].text = val;
-  saveQuizzes();
-}
-window.onBlockFontSize = function(bi, val) {
-  let pg = getPage();
-  pg.blocks[bi].size = parseInt(val)||18;
-  saveQuizzes();
-  renderApp();
-}
-window.onBlockColor = function(bi, val) {
-  let pg = getPage();
-  pg.blocks[bi].color = val;
-  saveQuizzes();
-  renderApp();
-}
-window.onBlockPos = function(bi, prop, val) {
-  let pg = getPage();
-  pg.blocks[bi][prop] = parseInt(val)||0;
-  saveQuizzes();
-  renderApp();
-}
+
+// --- Save/Export/Import
 window.onSaveQuiz = function() {
   saveQuizzes();
   alert("Saved!");
@@ -352,6 +365,8 @@ window.onImportQuiz = function() {
         if (data && data.id && data.pages) {
           quizzes.push(data);
           currentQuizIdx = quizzes.length-1;
+          selectedPageIdx = 0;
+          selectedBlockIdx = -1;
           saveQuizzes();
           renderApp();
         } else {
@@ -366,7 +381,7 @@ window.onImportQuiz = function() {
   inp.click();
 }
 
-// -- Dragging/resizing blocks --
+// --- Dragging/resizing blocks --
 function attachCanvasEvents() {
   const canvas = document.getElementById('editor-canvas');
   if (!canvas) return;
@@ -376,7 +391,7 @@ function attachCanvasEvents() {
       if (e.target.classList.contains('block-content')) return;
       dragIdx = bi;
       startX = e.clientX; startY = e.clientY;
-      startBlock = Object.assign({}, getPage().blocks[bi]);
+      startBlock = Object.assign({}, quizzes[currentQuizIdx].pages[selectedPageIdx].blocks[bi]);
       resizing = (e.offsetX > block.offsetWidth-16 && e.offsetY > block.offsetHeight-16);
       document.body.style.userSelect = "none";
       selectedBlockIdx = bi;
@@ -385,8 +400,8 @@ function attachCanvasEvents() {
   });
   window.onmousemove = e => {
     if (dragIdx===-1) return;
-    let pg = getPage();
-    let b = pg.blocks[dragIdx];
+    let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+    let b = page.blocks[dragIdx];
     if (!b) return;
     if (resizing) {
       let dw = e.clientX-startX, dh = e.clientY-startY;
@@ -410,5 +425,7 @@ function attachCanvasEvents() {
 if (quizzes.length===0) {
   quizzes.push(blankQuiz());
 }
+if (quizzes[0].pages.length===0) {
+  quizzes[0].pages.push({ bg: "static/1.png", blocks: [] });
+}
 renderApp();
-
