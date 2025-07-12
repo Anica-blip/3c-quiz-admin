@@ -42,24 +42,19 @@ function nextQuizId() {
 
 // Smart image suggestion logic
 function suggestImageForPage(pages) {
-  // Find last bg filename, suggest next in sequence
   if (!pages.length) return "static/1.png";
   let last = pages[pages.length-1].bg || "";
   let match = last.match(/^static\/([a-zA-Z]*)(\d*|[a-z]*)\.png$/);
   if (!match) return "static/1.png";
   let [_, prefix, suffix] = match;
-  // e.g., 3a, 3b, 5a...
   if (/^\d+$/.test(suffix)) {
-    // e.g., 1.png, 2.png, 3.png
     let n = parseInt(suffix) + 1;
     return `static/${prefix}${n}.png`;
   } else if (/^[a-zA-Z]$/.test(suffix)) {
-    // e.g., 3a.png, 3b.png
     let char = suffix.toLowerCase();
     let nextChar = String.fromCharCode(char.charCodeAt(0)+1);
     return `static/${prefix}${nextChar}.png`;
   } else if (/^\d+[a-zA-Z]$/.test(suffix)) {
-    // e.g., 5a, 5b: handle as needed
     let num = suffix.match(/^(\d+)/)[1];
     let char = suffix.match(/[a-zA-Z]$/)[0];
     let nextChar = String.fromCharCode(char.charCodeAt(0)+1);
@@ -255,7 +250,6 @@ window.onAddBlock = function(type) {
   let tpl = BLOCK_TYPES.find(b => b.type===type);
   const blockCount = (page.blocks||[]).length;
   page.blocks = page.blocks||[];
-  // Let each type be named/labelled uniquely per page
   page.blocks.push({
     type,
     label: tpl.label,
@@ -385,40 +379,93 @@ window.onImportQuiz = function() {
 function attachCanvasEvents() {
   const canvas = document.getElementById('editor-canvas');
   if (!canvas) return;
-  let dragIdx = -1, startX, startY, startBlock = null, resizing = false;
-  canvas.querySelectorAll('.text-block').forEach((block,bi) => {
-    block.onmousedown = e => {
-      if (e.target.classList.contains('block-content')) return;
-      dragIdx = bi;
-      startX = e.clientX; startY = e.clientY;
-      startBlock = Object.assign({}, quizzes[currentQuizIdx].pages[selectedPageIdx].blocks[bi]);
-      resizing = (e.offsetX > block.offsetWidth-16 && e.offsetY > block.offsetHeight-16);
-      document.body.style.userSelect = "none";
-      selectedBlockIdx = bi;
-      renderApp();
-    };
-  });
-  window.onmousemove = e => {
-    if (dragIdx===-1) return;
-    let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-    let b = page.blocks[dragIdx];
-    if (!b) return;
-    if (resizing) {
-      let dw = e.clientX-startX, dh = e.clientY-startY;
-      b.w = Math.max(24, startBlock.w+dw);
-      b.h = Math.max(24, startBlock.h+dh);
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let dragging = false, resizing = false, dragIdx = -1;
+  let startX, startY, startBlock = null;
+
+  function onCanvasMouseDown(e) {
+    const blockEl = e.target.closest('.text-block');
+    if (!blockEl) return;
+    const bi = Number(blockEl.dataset.idx);
+    const block = page.blocks[bi];
+    const rect = blockEl.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+
+    // If near bottom-right, start resizing
+    if (offsetX > blockEl.offsetWidth - 18 && offsetY > blockEl.offsetHeight - 18) {
+      resizing = true;
     } else {
-      let dx = e.clientX-startX, dy = e.clientY-startY;
-      b.x = Math.max(0, Math.min(CANVAS_W-b.w, startBlock.x+dx));
-      b.y = Math.max(0, Math.min(CANVAS_H-b.h, startBlock.y+dy));
+      resizing = false;
+    }
+    dragging = true;
+    dragIdx = bi;
+    startX = e.clientX;
+    startY = e.clientY;
+    startBlock = {...block};
+    selectedBlockIdx = bi;
+    renderApp(); // to highlight
+    e.preventDefault();
+  }
+  function onCanvasMouseMove(e) {
+    if (!dragging || dragIdx === -1) return;
+    let block = page.blocks[dragIdx];
+    if (!block) return;
+    if (resizing) {
+      let dw = e.clientX - startX;
+      let dh = e.clientY - startY;
+      block.w = Math.max(24, startBlock.w + dw);
+      block.h = Math.max(24, startBlock.h + dh);
+    } else {
+      let dx = e.clientX - startX;
+      let dy = e.clientY - startY;
+      block.x = Math.max(0, Math.min(CANVAS_W - block.w, startBlock.x + dx));
+      block.y = Math.max(0, Math.min(CANVAS_H - block.h, startBlock.y + dy));
     }
     saveQuizzes();
     renderApp();
-  };
-  window.onmouseup = e => {
+  }
+  function onCanvasMouseUp() {
+    dragging = false;
+    resizing = false;
     dragIdx = -1;
     document.body.style.userSelect = "";
-  };
+  }
+  // Touch events for mobile
+  function onCanvasTouchStart(e) {
+    const touch = e.touches[0];
+    onCanvasMouseDown({
+      ...e,
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      preventDefault:()=>{}
+    });
+  }
+  function onCanvasTouchMove(e) {
+    if (!dragging) return;
+    const touch = e.touches[0];
+    onCanvasMouseMove({
+      ...e,
+      clientX: touch.clientX,
+      clientY: touch.clientY
+    });
+  }
+  function onCanvasTouchEnd(e) {
+    onCanvasMouseUp(e);
+  }
+
+  // Attach events
+  // Remove old handlers first
+  canvas.onmousedown = onCanvasMouseDown;
+  canvas.onmousemove = onCanvasMouseMove;
+  canvas.onmouseup = onCanvasMouseUp;
+  canvas.onmouseleave = onCanvasMouseUp;
+
+  // Touch
+  canvas.ontouchstart = onCanvasTouchStart;
+  canvas.ontouchmove = onCanvasTouchMove;
+  canvas.ontouchend = onCanvasTouchEnd;
+  canvas.ontouchcancel = onCanvasTouchEnd;
 }
 
 // --- Initial render ---
