@@ -1,4 +1,4 @@
-// 3c-quiz-admin v5 - robust, autosave, draggable, resizable, alignment, remove-any, expand blocks
+// 3c-quiz-admin v6 - robust, autosave, draggable, resizable, alignment, remove-any, expanding blocks
 
 const CANVAS_W = 360, CANVAS_H = 640;
 const BLOCK_TYPES = [
@@ -110,6 +110,8 @@ function renderApp() {
         <button onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''}>&larr;</button>
         <span style="margin:0 12px;">Page ${selectedPageIdx+1} / ${pages.length}</span>
         <button onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''}>&rarr;</button>
+        <button onclick="onAddPage()" style="margin-left:12px;">+ Create Next Page</button>
+        <button onclick="onSavePage()" style="margin-left:8px;">💾 Save Page</button>
       </div>
       <div class="editor-canvas-wrap">
         <div>
@@ -144,7 +146,7 @@ function renderCanvas(page) {
         <div class="text-block${bi===selectedBlockIdx?' selected':''}"
           style="
             left:${b.x}px;top:${b.y}px;
-            width:${b.w}px;height:${b.h}px;
+            width:${b.w}px;min-height:24px;max-width:${CANVAS_W-8}px;
             font-size:${b.size}px;
             color:${b.color};
             text-align:${b.align||'left'};
@@ -158,16 +160,15 @@ function renderCanvas(page) {
             ${b.align==="center"?"&#8596;":"&#8592;"}
           </button>
           <div class="block-content" contenteditable="true"
-            oninput="onBlockTextInput(${bi},this.innerText)"
+            oninput="onBlockTextInput(${bi},this)"
             spellcheck="false"
             style="
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
               width:100%;min-height:20px;max-height:none;outline:none;background:transparent;border:none;
-              overflow:visible;
-              word-break:break-word;white-space:pre-wrap;resize:none;
+              overflow:visible;word-break:break-word;white-space:pre-wrap;resize:none;
               ">
-            ${b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>")}
+            ${(b.text||"").replace(/</g,"&lt;").replace(/\n/g,"<br>")}
           </div>
           <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
         </div>
@@ -270,6 +271,10 @@ window.onNextPage = function() {
     selectedPageIdx++; selectedBlockIdx = -1; renderApp();
   }
 }
+window.onSavePage = function() {
+  saveQuizzes();
+  alert("Page saved!");
+}
 
 // Block controls
 window.onAddBlock = function(type) {
@@ -329,10 +334,12 @@ window.onBlockAlign = function(idx, val) {
   saveQuizzes();
   renderApp();
 };
-window.onBlockTextInput = function(bi, val) {
+window.onBlockTextInput = function(bi, el) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[bi];
-  b.text = val.replace(/\r/g,"");
+  // Convert <br> etc back to real text
+  let text = el.innerHTML.replace(/<br\s*\/?>/gi, "\n").replace(/&lt;/g, "<");
+  b.text = text;
   // Autosize block height to fit content
   setTimeout(()=>{
     let canvas = document.getElementById("editor-canvas");
