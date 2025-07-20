@@ -3,8 +3,8 @@ const CANVAS_W = 360, CANVAS_H = 640;
 const BLOCK_TYPES = [
   { type: "title", label: "Title", w: 275, h: 55, x: 42, y: 231, size: 18, align: "left", color: "#222222", maxlen: 200 },
   { type: "desc", label: "Description", w: 275, h: 256, x: 42, y: 294, size: 16, align: "left", color: "#444444", maxlen: 1000 },
-  { type: "question", label: "Question", w: 294, h: 24, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 },
-  { type: "answer", label: "Answer", w: 294, h: 24, x: 31, y: 216, size: 16, align: "left", color: "#003366", maxlen: 200 }
+  { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 },
+  { type: "answer", label: "Answer", w: 294, h: 55, x: 31, y: 216, size: 16, align: "left", color: "#003366", maxlen: 200 }
 ];
 
 function blankQuiz() {
@@ -147,6 +147,9 @@ function renderCanvas(page) {
             oninput="onBlockTextInput(${bi},this)"
             spellcheck="true"
             style="
+              direction: ltr; 
+              unicode-bidi: plaintext;
+              writing-mode: horizontal-tb;
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
               width:100%;min-height:24px;outline:none;background:transparent;border:none;
