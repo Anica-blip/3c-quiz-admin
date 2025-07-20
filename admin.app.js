@@ -1,5 +1,3 @@
-// FIX: Blocks always allow typing/pasting text as soon as added -- contenteditable works!
-
 const CANVAS_W = 360, CANVAS_H = 640;
 
 const BLOCK_TYPES = [
@@ -73,6 +71,7 @@ function renderApp() {
           <button onclick="onAddBlock('${b.type}')">${b.label}</button>
         `).join('')}
         <button onclick="onRemoveAllBlocks()" class="danger" style="margin-top:4px;">Remove All</button>
+        <button onclick="onRemoveBlockSidebar()" class="danger" style="margin-top:8px;" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
       </div>
     </div>
     <div class="mainpanel">
@@ -112,7 +111,6 @@ function renderApp() {
     </div>
   `;
   setTimeout(attachCanvasEvents, 30);
-  // Focus first block if just created
   setTimeout(()=>{
     if (selectedBlockIdx >= 0) {
       let canvas = document.getElementById("editor-canvas");
@@ -145,10 +143,9 @@ function renderCanvas(page) {
           onclick="onSelectBlock(${bi});"
           >
           <span class="block-label">${b.label||b.type}</span>
-          <button class="block-remove" onclick="onRemoveBlock(${bi});event.stopPropagation();" title="Remove">&times;</button>
           <div class="block-content" contenteditable="true"
             oninput="onBlockTextInput(${bi},this)"
-            spellcheck="false"
+            spellcheck="true"
             style="
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
@@ -168,7 +165,6 @@ function renderBlockSettings(page) {
   return `
     <div style="margin-bottom:8px;">
       <button onclick="onSelectBlock(${selectedBlockIdx})" style="font-weight:bold;">${b.label||b.type}</button>
-      <button onclick="onRemoveBlock(${selectedBlockIdx})" class="danger" style="margin-left:10px;">Remove Block</button>
     </div>
     <div class="block-settings">
       <div style="font-size:1em;">
@@ -208,6 +204,16 @@ function renderBlockSettings(page) {
     </div>
   `;
 }
+
+// Remove block from sidebar button
+window.onRemoveBlockSidebar = function() {
+  if (selectedBlockIdx < 0) return;
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks.splice(selectedBlockIdx,1);
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
 
 window.onAddPage = function() {
   let quiz = quizzes[currentQuizIdx];
@@ -283,7 +289,7 @@ window.onAddBlock = function(type) {
   page.blocks.push({
     type: tpl.type,
     label: tpl.label,
-    text: "", // <-- Always empty, so you can type
+    text: "", // Empty so you can always type
     x: tpl.x, y: tpl.y,
     w: tpl.w, h: tpl.h,
     size: tpl.size,
@@ -292,14 +298,6 @@ window.onAddBlock = function(type) {
     maxlen: tpl.maxlen
   });
   selectedBlockIdx = page.blocks.length-1;
-  saveQuizzes();
-  renderApp();
-};
-window.onRemoveBlock = function(idx) {
-  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-  if (!page.blocks || idx<0 || idx>=page.blocks.length) return;
-  page.blocks.splice(idx,1);
-  selectedBlockIdx = -1;
   saveQuizzes();
   renderApp();
 };
@@ -324,6 +322,7 @@ window.onBlockAlign = function(idx, val) {
 window.onBlockTextInput = function(bi, el) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[bi];
+  // Get plain text (not innerHTML) so delete/backspace/paste works
   let text = el.innerText.replace(/\u200B/g, '');
   if (b.maxlen) text = text.slice(0, b.maxlen);
   b.text = text;
@@ -438,7 +437,7 @@ function attachCanvasEvents() {
   let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
   canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
     blockEl.onmousedown = e => {
-      if (e.target.classList.contains('block-remove') ||
+      if (e.target.classList.contains('block-label') ||
           e.target.classList.contains('block-content') ||
           e.target.classList.contains('resize-handle')) return;
       dragIdx = bi;
