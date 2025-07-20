@@ -1,8 +1,7 @@
-// 3c-quiz-admin v12 - FIXED: block positions for 4.png and 5a–5d.png, proper text input, sidebar editing, individual delete
+// admin.app.js - corrected so block expansion, font size, sidebar controls, and answer bar height all work as intended
 
 const CANVAS_W = 360, CANVAS_H = 640;
 
-// Exact layouts for specific pages
 const PAGE_LAYOUTS = {
   "2.png": [
     { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
@@ -183,7 +182,9 @@ function renderApp() {
     <style>
       .editor-canvas { background:#e8e8f0; border-radius:16px; position:relative; box-shadow:0 2px 12px #0002; margin-bottom:12px; overflow:hidden;}
       .editor-canvas img.bg { position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:0;}
-      .text-block { position:absolute;z-index:1;box-sizing:border-box;padding:0 12px;background:#fff8;border:2px solid #6cf3;border-radius:8px;transition:border-color .2s;}
+      .text-block { position:absolute;z-index:1;box-sizing:border-box;padding:0 12px;background:#fff8;border:2px solid #6cf3;border-radius:8px;transition:border-color .2s;
+        display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start;
+        min-height: 24px; }
       .text-block.selected { border-color:#2e8cff; background:#e6f0ffcc;}
       .block-label {font-weight:bold;font-size:0.85em;background:#fff3;color:#006bb3;border-radius:6px;padding:2px 10px 2px 3px;position:absolute;left:10px;top:-20px;}
       .block-remove {position:absolute;top:-18px;right:6px; background:#f33;color:#fff;border:none;border-radius:5px;cursor:pointer;padding:0 7px; font-size:1em;}
@@ -197,14 +198,12 @@ function renderApp() {
       .block-settings label {display:block;margin:4px 0;}
       .save-area button {margin-right:8px;margin-top:8px;}
       .danger {background:#f33!important;color:#fff!important;}
-      .text-block.bar {height:auto;}
-      .text-block.square {height:auto;}
       .block-content {
-        font-size:inherit;color:inherit;
+        font-size:inherit; color:inherit;
         text-align:inherit;
-        width:100%;min-height:24px;max-height:none;outline:none;background:transparent;border:none;
-        overflow-wrap:break-word; /* Fix: wrap text normally */
-        word-break:break-word;white-space:pre-line;resize:none;
+        width:100%; min-height:24px; outline:none; background:transparent; border:none;
+        overflow-wrap:break-word; white-space:pre-line; resize:none;
+        display: block; vertical-align: top; padding: 2px 2px 0 2px; margin: 0;
       }
     </style>
   `;
@@ -217,11 +216,11 @@ function renderCanvas(page) {
     <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;position:relative;">
       <img class="bg" src="${page.bg||''}" alt="bg">
       ${(page.blocks||[]).map((b,bi) => `
-        <div class="text-block ${b.bar?'bar':'square'}${bi===selectedBlockIdx?' selected':''}"
+        <div class="text-block${bi===selectedBlockIdx?' selected':''}"
           style="
             left:${b.x}px;top:${b.y}px;
             width:${b.w}px;
-            min-height:${b.h}px;
+            height:${b.h}px;
             font-size:${b.size}px;
             color:${b.color};
             text-align:${b.align||'left'};
@@ -237,9 +236,8 @@ function renderCanvas(page) {
             style="
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
-              width:100%;min-height:24px;max-height:none;outline:none;background:transparent;border:none;
-              overflow-wrap:break-word;
-              word-break:break-word;white-space:pre-line;resize:none;">
+              width:100%;min-height:24px;outline:none;background:transparent;border:none;
+              overflow-wrap:break-word;white-space:pre-line;resize:none;display:block;vertical-align:top;padding:2px 2px 0 2px;">
             ${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}
           </div>
           <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
@@ -296,7 +294,6 @@ function renderBlockSettings(page) {
   `;
 }
 
-// Page actions
 window.onAddPage = function() {
   let quiz = quizzes[currentQuizIdx];
   let suggestion = "static/2.png";
@@ -364,14 +361,12 @@ window.onSavePage = function() {
   alert("Page saved!");
 }
 
-// Block controls
 window.onAddBlock = function(type) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let tpl = BLOCK_TYPES.find(b => b.type===type);
   page.blocks = page.blocks||[];
-
   let blockW = tpl.bar ? CANVAS_W-48 : CANVAS_W-48;
-  let blockH = tpl.bar ? tpl.size+26 : 120;
+  let blockH = tpl.bar ? tpl.size+8 : 120;
   if (type==="desc"||type==="result") blockH = 120;
   let x = Math.round((CANVAS_W-blockW)/2);
   let y = 40;
@@ -425,10 +420,10 @@ window.onBlockAlign = function(idx, val) {
 window.onBlockTextInput = function(bi, el) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[bi];
-  let text = el.innerText.replace(/\u200B/g, '');
+  let text = el.innerText.replace(/\u200B/g, '').replace(/\r\n|\r|\n/g, ' '); // Remove extra linebreaks
   if (b.maxlen) text = text.slice(0, b.maxlen);
   b.text = text;
-  // Autosize block height to fit content (multi-line)
+  // Only expand block height if content is taller than min
   setTimeout(()=>{
     let canvas = document.getElementById("editor-canvas");
     if (!canvas) return;
@@ -437,8 +432,8 @@ window.onBlockTextInput = function(bi, el) {
     if (contentEl) {
       contentEl.style.height = "auto";
       let box = contentEl.getBoundingClientRect();
-      let h = Math.max(b.size+26, box.height+18);
-      if (b.bar) h = Math.max(b.size+26, h);
+      let h = Math.max(b.size+8, box.height+8);
+      if (b.bar) h = Math.max(b.size+8, h); // Answer bars should not expand unless needed
       if (!b.bar) h = Math.max(90, h);
       b.h = Math.min(h, CANVAS_H-b.y);
       saveQuizzes();
