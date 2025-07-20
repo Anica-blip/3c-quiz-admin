@@ -1,12 +1,13 @@
-// 3c-quiz-admin v7 - fully working, drag/drop, multi-line edit, per-block remove, alignment, autosave, page workflow
+// 3c-quiz-admin v8 - Blocks centered, vertical stacking, bars for Title/Question/Answer, squares for Description/Result,
+// clean controls, correct text input, proper remove, autosave, navigation, default sensible positions
 
 const CANVAS_W = 360, CANVAS_H = 640;
 const BLOCK_TYPES = [
-  { type: "title", label: "Title", text: "Your Title", color: "#222222", size: 28, align: "center" },
-  { type: "desc", label: "Description", text: "Description...", color: "#444444", size: 17, align: "left" },
-  { type: "question", label: "Question", text: "Question text?", color: "#222222", size: 18, align: "left" },
-  { type: "answer", label: "Answer", text: "Answer option", color: "#003366", size: 16, align: "left" },
-  { type: "result", label: "Result", text: "Result text...", color: "#1B5E20", size: 20, align: "center" }
+  { type: "title", label: "Title", text: "Your Title", color: "#222222", size: 28, align: "center", bar: true },
+  { type: "desc", label: "Description", text: "Description...", color: "#444444", size: 17, align: "left", bar: false },
+  { type: "question", label: "Question", text: "Question text?", color: "#222222", size: 18, align: "left", bar: true },
+  { type: "answer", label: "Answer", text: "Answer option", color: "#003366", size: 16, align: "left", bar: true },
+  { type: "result", label: "Result", text: "Result text...", color: "#1B5E20", size: 20, align: "center", bar: false }
 ];
 
 function blankQuiz() {
@@ -61,6 +62,21 @@ let quizzes = loadQuizzes();
 let currentQuizIdx = 0;
 let selectedPageIdx = 0;
 let selectedBlockIdx = -1;
+
+// Placement logic
+function getNextBlockPosition(page, blockType, blockW, blockH) {
+  // Center X
+  const x = Math.round((CANVAS_W - blockW) / 2);
+  // Find Y for stacking
+  let y = 40; // default top margin
+  if (page.blocks && page.blocks.length > 0) {
+    let lastBlock = page.blocks[page.blocks.length - 1];
+    y = lastBlock.y + lastBlock.h + 18; // 18px vertical gap
+  }
+  // Clamp if too low
+  if (y + blockH > CANVAS_H - 16) y = CANVAS_H - blockH - 16;
+  return { x, y };
+}
 
 function renderApp() {
   const app = document.getElementById('app');
@@ -136,11 +152,10 @@ function renderApp() {
     <style>
       .editor-canvas { background:#e8e8f0; border-radius:16px; position:relative; box-shadow:0 2px 12px #0002; margin-bottom:12px; overflow:hidden;}
       .editor-canvas img.bg { position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:0;}
-      .text-block { position:absolute;z-index:1;box-sizing:border-box;padding:0 6px 2px 6px;background:#fff8;border:2px dashed #6cf0;border-radius:8px;min-width:48px;min-height:24px;max-width:${CANVAS_W-8}px;transition:border-color .2s;}
+      .text-block { position:absolute;z-index:1;box-sizing:border-box;padding:0 10px;background:#fff8;border:2px solid #6cf3;border-radius:8px;transition:border-color .2s;}
       .text-block.selected { border-color:#2e8cff; background:#e6f0ffcc;}
-      .block-label {font-weight:bold;font-size:0.85em;background:#fff3;color:#006bb3;border-radius:6px;padding:1px 8px 1px 3px;position:absolute;left:6px;top:-16px;}
-      .block-remove {float:right; background:#f33;color:#fff;border:none;border-radius:5px;cursor:pointer;padding:0 7px;margin-left:4px; font-size:1em;}
-      .block-align {float:right;background:#eee;color:#333;border:none;border-radius:5px;cursor:pointer;padding:0 7px;margin-left:4px;font-size:1em;}
+      .block-label {font-weight:bold;font-size:0.85em;background:#fff3;color:#006bb3;border-radius:6px;padding:1px 8px 1px 3px;position:absolute;left:8px;top:-20px;}
+      .block-remove {position:absolute;top:-18px;right:6px; background:#f33;color:#fff;border:none;border-radius:5px;cursor:pointer;padding:0 7px; font-size:1em;}
       .resize-handle {position:absolute;right:0;bottom:0;width:15px;height:15px;border-radius:3px;border:1px solid #66c; background:#fff;cursor:nwse-resize;}
       .sidebar { float:left; width:180px; background:#f7fafd; min-height:${CANVAS_H}px; border-right:1px solid #e2e2e2; box-sizing:border-box; padding:10px; }
       .mainpanel { margin-left:190px; min-width:400px; }
@@ -165,7 +180,7 @@ function renderCanvas(page) {
         <div class="text-block${bi===selectedBlockIdx?' selected':''}"
           style="
             left:${b.x}px;top:${b.y}px;
-            width:${b.w}px;min-height:24px;max-width:${CANVAS_W-8}px;
+            width:${b.w}px;min-height:${b.h}px;max-width:${CANVAS_W-16}px;
             font-size:${b.size}px;
             color:${b.color};
             text-align:${b.align||'left'};
@@ -175,16 +190,14 @@ function renderCanvas(page) {
           >
           <span class="block-label">${b.label||b.type}</span>
           <button class="block-remove" onclick="onRemoveBlock(${bi});event.stopPropagation();" title="Remove">&times;</button>
-          <button class="block-align" onclick="onToggleAlign(${bi});event.stopPropagation();" title="Toggle alignment">
-            ${b.align==="center"?"&#8596;":"&#8592;"}
-          </button>
           <div class="block-content" contenteditable="true"
             oninput="onBlockTextInput(${bi},this)"
             spellcheck="false"
+            maxlength="${b.type==='desc'||b.type==='result' ? 1000 : 200}"
             style="
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
-              width:100%;min-height:20px;max-height:none;outline:none;background:transparent;border:none;
+              width:100%;min-height:24px;max-height:none;outline:none;background:transparent;border:none;
               overflow:visible;word-break:break-word;white-space:pre-wrap;resize:none;
               ">
             ${(b.text||"").replace(/</g,"&lt;").replace(/\n/g,"<br>")}
@@ -213,6 +226,14 @@ function renderBlockSettings(page) {
         <input type="color" value="${b.color}"
           onchange="onBlockColor(${selectedBlockIdx},this.value)">
       </label>
+      <label>Width: 
+        <input type="number" min="80" max="${CANVAS_W-16}" value="${b.w}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
+      </label>
+      <label>Height: 
+        <input type="number" min="24" max="${CANVAS_H}" value="${b.h}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
+      </label>
       <label>X: 
         <input type="number" min="0" max="${CANVAS_W-20}" value="${b.x}" style="width:48px;"
           onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
@@ -220,14 +241,6 @@ function renderBlockSettings(page) {
       <label>Y: 
         <input type="number" min="0" max="${CANVAS_H-20}" value="${b.y}" style="width:48px;"
           onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
-      </label>
-      <label>W: 
-        <input type="number" min="24" max="${CANVAS_W}" value="${b.w}" style="width:48px;"
-          onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
-      </label>
-      <label>H: 
-        <input type="number" min="24" max="${CANVAS_H}" value="${b.h}" style="width:48px;"
-          onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
       </label>
       <label>Align:
         <select onchange="onBlockAlign(${selectedBlockIdx},this.value)">
@@ -299,17 +312,24 @@ window.onSavePage = function() {
 window.onAddBlock = function(type) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let tpl = BLOCK_TYPES.find(b => b.type===type);
-  const blockCount = (page.blocks||[]).length;
   page.blocks = page.blocks||[];
-  let blockW = 240, blockH = 42;
-  if(type==="desc") { blockH=90; }
-  if(type==="title") { blockH=63; }
+
+  // Sizing
+  let blockW = tpl.bar ? CANVAS_W-48 : CANVAS_W-48;
+  let blockH = tpl.bar ? 42 : 90;
+  if(type==="title") { blockH=56; }
+  if(type==="answer") { blockH=40; }
+  if(type==="question") { blockH=48; }
+  if(type==="desc"||type==="result") { blockH=90; }
+  // Placement
+  let pos = getNextBlockPosition(page, type, blockW, blockH);
+
   page.blocks.push({
     type,
     label: tpl.label,
     text: tpl.text,
-    x: 40+blockCount*10,
-    y: 100+blockCount*30,
+    x: pos.x,
+    y: pos.y,
     w: blockW,
     h: blockH,
     size: tpl.size,
@@ -339,13 +359,6 @@ window.onSelectBlock = function(idx) {
   selectedBlockIdx = idx;
   renderApp();
 };
-window.onToggleAlign = function(idx) {
-  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-  let b = page.blocks[idx];
-  b.align = (b.align==="center")?"left":"center";
-  saveQuizzes();
-  renderApp();
-};
 window.onBlockAlign = function(idx, val) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[idx];
@@ -356,10 +369,13 @@ window.onBlockAlign = function(idx, val) {
 window.onBlockTextInput = function(bi, el) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[bi];
-  // Convert <br> etc back to real text
-  let text = el.innerHTML.replace(/<br\s*\/?>/gi, "\n").replace(/&lt;/g, "<").replace(/<\/div>/gi,"").replace(/<div>/gi,"\n");
+  // Clean up pasted/typed HTML to text
+  let text = el.innerText.replace(/\u200B/g, ''); // Remove zero-width space
+  if (b.type==='desc'||b.type==='result') {
+    text = text.slice(0,1000);
+  }
   b.text = text;
-  // Autosize block height to fit content
+  // Autosize block height to fit content (multi-line)
   setTimeout(()=>{
     let canvas = document.getElementById("editor-canvas");
     if (!canvas) return;
@@ -368,7 +384,7 @@ window.onBlockTextInput = function(bi, el) {
     if (contentEl) {
       contentEl.style.height = "auto";
       let box = contentEl.getBoundingClientRect();
-      let h = Math.max(24, box.height+10);
+      let h = Math.max(24, box.height+12);
       b.h = Math.min(h, CANVAS_H-b.y);
       saveQuizzes();
       renderApp();
@@ -474,10 +490,9 @@ function attachCanvasEvents() {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
   canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
-    // Drag
+    // Drag anywhere in block except controls
     blockEl.onmousedown = e => {
       if (e.target.classList.contains('block-remove') ||
-          e.target.classList.contains('block-align') ||
           e.target.classList.contains('block-content') ||
           e.target.classList.contains('resize-handle')) return;
       dragIdx = bi;
@@ -511,7 +526,7 @@ function attachCanvasEvents() {
     if (!block) return;
     if (resizing) {
       let dw = e.clientX-startX, dh = e.clientY-startY;
-      block.w = Math.max(40, startBlock.w+dw);
+      block.w = Math.max(80, Math.min(CANVAS_W-16, startBlock.w+dw));
       block.h = Math.max(24, startBlock.h+dh);
     } else {
       let dx = e.clientX-startX, dy = e.clientY-startY;
