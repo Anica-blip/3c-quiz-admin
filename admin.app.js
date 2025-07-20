@@ -143,10 +143,11 @@ function renderCanvas(page) {
           onclick="onSelectBlock(${bi});"
           >
           <span class="block-label">${b.label||b.type}</span>
-          <div class="block-content" contenteditable="true"
+          <div class="block-content" contenteditable="true" dir="ltr"
             oninput="onBlockTextInput(${bi},this)"
             spellcheck="true"
             style="
+              direction:ltr;
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
               width:100%;min-height:24px;outline:none;background:transparent;border:none;
@@ -322,7 +323,6 @@ window.onBlockAlign = function(idx, val) {
 window.onBlockTextInput = function(bi, el) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[bi];
-  // Get plain text (not innerHTML) so delete/backspace/paste works
   let text = el.innerText.replace(/\u200B/g, '');
   if (b.maxlen) text = text.slice(0, b.maxlen);
   b.text = text;
