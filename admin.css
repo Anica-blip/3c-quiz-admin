@@ -152,7 +152,8 @@ body {
   background: rgba(255,255,255,0.40);
 }
 .text-block .block-content {
-  direction: ltr;  /* CRITICAL FIX: left-to-right typing/pasting/deleting */
+  direction: ltr !important;
+  unicode-bidi: plaintext !important;
   width: 100%;
   min-height: 24px;
   height: auto;
