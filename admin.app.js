@@ -1,4 +1,4 @@
-// 3c-quiz-admin v6 - robust, autosave, draggable, resizable, alignment, remove-any, expanding blocks
+// 3c-quiz-admin v7 - fully working, drag/drop, multi-line edit, per-block remove, alignment, autosave, page workflow
 
 const CANVAS_W = 360, CANVAS_H = 640;
 const BLOCK_TYPES = [
@@ -133,6 +133,25 @@ function renderApp() {
         </div>
       </div>
     </div>
+    <style>
+      .editor-canvas { background:#e8e8f0; border-radius:16px; position:relative; box-shadow:0 2px 12px #0002; margin-bottom:12px; overflow:hidden;}
+      .editor-canvas img.bg { position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:0;}
+      .text-block { position:absolute;z-index:1;box-sizing:border-box;padding:0 6px 2px 6px;background:#fff8;border:2px dashed #6cf0;border-radius:8px;min-width:48px;min-height:24px;max-width:${CANVAS_W-8}px;transition:border-color .2s;}
+      .text-block.selected { border-color:#2e8cff; background:#e6f0ffcc;}
+      .block-label {font-weight:bold;font-size:0.85em;background:#fff3;color:#006bb3;border-radius:6px;padding:1px 8px 1px 3px;position:absolute;left:6px;top:-16px;}
+      .block-remove {float:right; background:#f33;color:#fff;border:none;border-radius:5px;cursor:pointer;padding:0 7px;margin-left:4px; font-size:1em;}
+      .block-align {float:right;background:#eee;color:#333;border:none;border-radius:5px;cursor:pointer;padding:0 7px;margin-left:4px;font-size:1em;}
+      .resize-handle {position:absolute;right:0;bottom:0;width:15px;height:15px;border-radius:3px;border:1px solid #66c; background:#fff;cursor:nwse-resize;}
+      .sidebar { float:left; width:180px; background:#f7fafd; min-height:${CANVAS_H}px; border-right:1px solid #e2e2e2; box-sizing:border-box; padding:10px; }
+      .mainpanel { margin-left:190px; min-width:400px; }
+      .page-list ul {list-style:none;padding:0;margin:0;}
+      .page-list li {margin-bottom:7px;display:flex;align-items:center;}
+      .page-img-thumb {width:28px;height:28px;object-fit:cover;border-radius:6px;margin-right:5px;}
+      .img-filename {font-size:0.9em;color:#777;}
+      .block-settings label {display:block;margin:4px 0;}
+      .save-area button {margin-right:8px;margin-top:8px;}
+      .danger {background:#f33!important;color:#fff!important;}
+    </style>
   `;
   setTimeout(attachCanvasEvents, 30);
 }
@@ -338,7 +357,7 @@ window.onBlockTextInput = function(bi, el) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[bi];
   // Convert <br> etc back to real text
-  let text = el.innerHTML.replace(/<br\s*\/?>/gi, "\n").replace(/&lt;/g, "<");
+  let text = el.innerHTML.replace(/<br\s*\/?>/gi, "\n").replace(/&lt;/g, "<").replace(/<\/div>/gi,"").replace(/<div>/gi,"\n");
   b.text = text;
   // Autosize block height to fit content
   setTimeout(()=>{
