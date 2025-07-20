@@ -183,3 +183,8 @@ function renderCanvas(page) {
 // [No changes to: renderBlockSettings, all event/window handlers, etc.]
 
 renderApp();
+
+// ...rest of file unchanged (all your admin/editor logic stays the same)
+// [No changes to: renderBlockSettings, all event/window handlers, etc.]
+
+renderApp();
