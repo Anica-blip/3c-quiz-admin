@@ -130,6 +130,7 @@ body {
   top: 0; left: 0;
   z-index: 1;
 }
+/* --- FIXED: Always align block text to TOP --- */
 .text-block {
   position: absolute;
   min-width: 60px;
@@ -142,13 +143,15 @@ body {
   box-sizing: border-box;
   z-index: 2;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: flex-start; /* <-- align content to left */
+  justify-content: flex-start; /* <-- always top align */
 }
 .text-block.selected {
   border: 2px solid #0057ff;
   background: rgba(255,255,255,0.40);
 }
+/* --- FIXED: Top align for block-content and no vertical centering --- */
 .text-block .block-content {
   width: 100%;
   height: 100%;
@@ -158,10 +161,13 @@ body {
   resize: none;
   font: inherit;
   color: inherit;
-  text-align: center;
-  padding: 2px;
+  text-align: left;      /* always left, unless overridden by JS */
+  padding: 2px 2px 0 2px;/* only top padding, no vertical centering */
+  margin: 0;
   overflow-wrap: break-word;
   white-space: pre-wrap;
+  display: block;        /* no flex, so stays top */
+  vertical-align: top;   /* not middle */
 }
 .text-block .block-label {
   position: absolute;
