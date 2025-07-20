@@ -9,7 +9,7 @@ const BLOCK_TYPES = [
 
 function blankQuiz() {
   return {
-    id: "quiz.01",
+    id: "", // Will be set by newQuizId()
     title: "New Quiz",
     pages: [
       { bg: "static/2.png", blocks: [] }
@@ -18,20 +18,33 @@ function blankQuiz() {
 }
 function loadQuizzes() {
   let q = localStorage.getItem('3c-quiz-admin-quizzes-v3');
-  if (!q) return [blankQuiz()];
+  if (!q) return [];
   try {
     const arr = JSON.parse(q);
-    if (!Array.isArray(arr) || arr.length === 0) return [blankQuiz()];
+    if (!Array.isArray(arr)) return [];
     return arr;
   } catch {
-    return [blankQuiz()];
+    return [];
   }
 }
 function saveQuizzes() {
   localStorage.setItem('3c-quiz-admin-quizzes-v3', JSON.stringify(quizzes));
 }
 
+// Generate next available quiz ID (reusing deleted numbers)
+function newQuizId() {
+  // Find all used numbers
+  let used = quizzes.map(q => {
+    let m = q.id.match(/^quiz\.(\d+)$/);
+    return m ? parseInt(m[1]) : null;
+  }).filter(n => n !== null);
+  let n = 1;
+  while (used.includes(n)) n++;
+  return `quiz.${String(n).padStart(2,'0')}`;
+}
+
 let quizzes = loadQuizzes();
+if (quizzes.length === 0) quizzes.push(Object.assign(blankQuiz(), {id: "quiz.01"}));
 let currentQuizIdx = 0;
 let selectedPageIdx = 0;
 let selectedBlockIdx = -1;
@@ -365,7 +378,9 @@ window.onBlockPos = function(bi, prop, val) {
 };
 
 window.onNewQuiz = function() {
-  quizzes.push(blankQuiz());
+  let newQuiz = blankQuiz();
+  newQuiz.id = newQuizId();
+  quizzes.push(newQuiz);
   currentQuizIdx = quizzes.length-1;
   selectedPageIdx = 0;
   selectedBlockIdx = -1;
@@ -489,6 +504,4 @@ function attachCanvasEvents() {
   };
 }
 
-if (quizzes.length===0) quizzes.push(blankQuiz());
-if (quizzes[0].pages.length===0) quizzes[0].pages.push({ bg: "static/2.png", blocks: [] });
 renderApp();
