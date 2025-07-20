@@ -1,11 +1,46 @@
-// 3c-quiz-admin v9 - Title/Question/Answer are horizontal bars, height expands with font size AND text wrapping.
-// Description/Result are square blocks, centered, stack vertically, no overlap, correct text input, correct alignment, remove always works.
+// 3c-quiz-admin v10 - Fixed block positions by page, editable, W x H / X x Y sidebar, left/center alignment for Title, text always starts left for others, always editable, individual delete works.
 
 const CANVAS_W = 360, CANVAS_H = 640;
 
-// Block type configs: shape, default sizes, label, input rules
+const PAGE_LAYOUTS = {
+  "2.png": [
+    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
+    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
+  ],
+  "3a.png": "qa", "3b.png": "qa", "3c.png": "qa", "3d.png": "qa", "3e.png": "qa", "3f.png": "qa", "3g.png": "qa", "3h.png": "qa",
+  "4.png": [
+    { type: "title", label: "Title", x: 42, y: 116, w: 275, h: 24, align: "left", size: 28 },
+    { type: "desc", label: "Description", x: 42, y: 206, w: 275, h: 120, align: "left", size: 17 }
+  ],
+  "5a.png": [
+    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
+    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
+  ],
+  "5b.png": [
+    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
+    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
+  ],
+  "5c.png": [
+    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
+    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
+  ],
+  "5d.png": [
+    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
+    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
+  ]
+};
+
+// Q&A layout blocks
+const QA_BLOCKS = [
+  { type: "question", label: "Question", x: 31, y: 109, w: 294, h: 24, align: "left", size: 18 },
+  { type: "answer", label: "A", x: 31, y: 216, w: 294, h: 24, align: "left", size: 16 },
+  { type: "answer", label: "B", x: 31, y: 298, w: 294, h: 24, align: "left", size: 16 },
+  { type: "answer", label: "C", x: 31, y: 374, w: 294, h: 24, align: "left", size: 16 },
+  { type: "answer", label: "D", x: 31, y: 464, w: 294, h: 24, align: "left", size: 16 }
+];
+
 const BLOCK_TYPES = [
-  { type: "title", label: "Title", text: "Your Title", color: "#222222", size: 28, align: "center", bar: true, maxlen: 200 },
+  { type: "title", label: "Title", text: "Your Title", color: "#222222", size: 28, align: "left", bar: true, maxlen: 200 },
   { type: "desc", label: "Description", text: "Description...", color: "#444444", size: 17, align: "left", bar: false, maxlen: 1000 },
   { type: "question", label: "Question", text: "Question text?", color: "#222222", size: 18, align: "left", bar: true, maxlen: 200 },
   { type: "answer", label: "Answer", text: "Answer option", color: "#003366", size: 16, align: "left", bar: true, maxlen: 200 },
@@ -36,46 +71,41 @@ function saveQuizzes() {
   localStorage.setItem('3c-quiz-admin-quizzes-v2', JSON.stringify(quizzes));
 }
 
-// Smart image suggestion
-function suggestImageForPage(pages) {
-  if (!pages.length) return "static/1.png";
-  let last = pages[pages.length-1].bg || "";
-  let match = last.match(/^static\/([a-zA-Z]*)(\d*|[a-z]*)\.png$/);
-  if (!match) return "static/1.png";
-  let [_, prefix, suffix] = match;
-  if (/^\d+$/.test(suffix)) {
-    let n = parseInt(suffix) + 1;
-    return `static/${prefix}${n}.png`;
-  } else if (/^[a-zA-Z]$/.test(suffix)) {
-    let char = suffix.toLowerCase();
-    let nextChar = String.fromCharCode(char.charCodeAt(0)+1);
-    return `static/${prefix}${nextChar}.png`;
-  } else if (/^\d+[a-zA-Z]$/.test(suffix)) {
-    let num = suffix.match(/^(\d+)/)[1];
-    let char = suffix.match(/[a-zA-Z]$/)[0];
-    let nextChar = String.fromCharCode(char.charCodeAt(0)+1);
-    return `static/${prefix}${num}${nextChar}.png`;
-  }
-  return "static/1.png";
-}
-
-// App state
 let quizzes = loadQuizzes();
 let currentQuizIdx = 0;
 let selectedPageIdx = 0;
 let selectedBlockIdx = -1;
 
-// Placement logic: blocks stack vertically, centered, spacing 22px between blocks
-function getNextBlockPosition(page, blockType, blockW, blockH) {
-  const x = Math.round((CANVAS_W - blockW) / 2);
-  let y = 40; // Title default
-  if (page.blocks && page.blocks.length > 0) {
-    const last = page.blocks[page.blocks.length - 1];
-    y = last.y + last.h + 22;
+function getPageLayout(page) {
+  if (!page || !page.bg) return null;
+  let fname = page.bg.replace(/^static\//, '');
+  let layout = PAGE_LAYOUTS[fname];
+  if (!layout) return null;
+  if (layout === "qa") return QA_BLOCKS;
+  return layout;
+}
+
+// Add default blocks to a new page if a known bg
+function ensurePageBlocks(page) {
+  let fname = page.bg.replace(/^static\//, '');
+  let layout = getPageLayout(page);
+  // Only if no blocks present and layout is known
+  if (page.blocks.length === 0 && layout) {
+    page.blocks = layout.map(l => ({
+      type: l.type,
+      label: l.label,
+      text: "",
+      x: l.x,
+      y: l.y,
+      w: l.w,
+      h: l.h,
+      size: l.size,
+      color: BLOCK_TYPES.find(b=>b.type===l.type)?.color || "#222",
+      align: l.align,
+      bar: ["title","question","answer"].includes(l.type),
+      maxlen: BLOCK_TYPES.find(b=>b.type===l.type)?.maxlen || 200
+    }));
   }
-  // Clamp if too low
-  if (y + blockH > CANVAS_H - 16) y = CANVAS_H - blockH - 16;
-  return { x, y };
 }
 
 function renderApp() {
@@ -84,6 +114,9 @@ function renderApp() {
   const quiz = quizzes[currentQuizIdx] || blankQuiz();
   const pages = quiz.pages || [blankQuiz().pages[0]];
   const page = pages[selectedPageIdx] || pages[0];
+
+  // Ensure default blocks if it's a known layout
+  ensurePageBlocks(page);
 
   app.innerHTML = `
     <div class="sidebar">
@@ -166,9 +199,7 @@ function renderApp() {
       .block-settings label {display:block;margin:4px 0;}
       .save-area button {margin-right:8px;margin-top:8px;}
       .danger {background:#f33!important;color:#fff!important;}
-      /* Bar blocks */
       .text-block.bar {height:auto;}
-      /* Square blocks */
       .text-block.square {height:auto;}
     </style>
   `;
@@ -221,6 +252,10 @@ function renderBlockSettings(page) {
       <button onclick="onRemoveBlock(${selectedBlockIdx})" class="danger" style="margin-left:10px;">Remove Block</button>
     </div>
     <div class="block-settings">
+      <div style="font-size:1em;">
+        <b>W</b>: ${b.w} &times; <b>H</b>: ${b.h}<br>
+        <b>X</b>: ${b.x} &times; <b>Y</b>: ${b.y}
+      </div>
       <label>Font Size: 
         <input type="number" min="10" max="64" value="${b.size}" style="width:48px;"
           onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
@@ -258,7 +293,21 @@ function renderBlockSettings(page) {
 // Page actions
 window.onAddPage = function() {
   let quiz = quizzes[currentQuizIdx];
-  let suggestion = suggestImageForPage(quiz.pages);
+  let suggestion = "static/2.png";
+  // Try to find next logical image name
+  let lastBg = quiz.pages.length>0 ? quiz.pages[quiz.pages.length-1].bg : "static/2.png";
+  let match = lastBg.match(/^static\/(\d+)([a-z]?)\.png$/);
+  if (match) {
+    let n = parseInt(match[1]);
+    let alpha = match[2];
+    if (alpha) {
+      // increment letter if 3a, 3b etc
+      let nextAlpha = String.fromCharCode(alpha.charCodeAt(0)+1);
+      suggestion = `static/${n}${nextAlpha}.png`;
+    } else {
+      suggestion = `static/${n+1}.png`;
+    }
+  }
   quiz.pages.push({ bg: suggestion, blocks: [] });
   selectedPageIdx = quiz.pages.length-1;
   selectedBlockIdx = -1;
@@ -317,19 +366,21 @@ window.onAddBlock = function(type) {
   let tpl = BLOCK_TYPES.find(b => b.type===type);
   page.blocks = page.blocks||[];
 
-  // Sizing
+  // Default to center block if not known layout
   let blockW = tpl.bar ? CANVAS_W-48 : CANVAS_W-48;
   let blockH = tpl.bar ? tpl.size+26 : 120;
   if (type==="desc"||type==="result") blockH = 120;
-  // Placement
-  let pos = getNextBlockPosition(page, type, blockW, blockH);
-
+  let x = Math.round((CANVAS_W-blockW)/2);
+  let y = 40;
+  if (page.blocks.length > 0) {
+    let last = page.blocks[page.blocks.length-1];
+    y = last.y + last.h + 22;
+  }
   page.blocks.push({
     type,
     label: tpl.label,
-    text: tpl.text,
-    x: pos.x,
-    y: pos.y,
+    text: "",
+    x, y,
     w: blockW,
     h: blockH,
     size: tpl.size,
@@ -371,7 +422,6 @@ window.onBlockAlign = function(idx, val) {
 window.onBlockTextInput = function(bi, el) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[bi];
-  // Clean up pasted/typed HTML to text
   let text = el.innerText.replace(/\u200B/g, '');
   if (b.maxlen) text = text.slice(0, b.maxlen);
   b.text = text;
@@ -385,9 +435,7 @@ window.onBlockTextInput = function(bi, el) {
       contentEl.style.height = "auto";
       let box = contentEl.getBoundingClientRect();
       let h = Math.max(b.size+26, box.height+18);
-      // For bars, never shrink below font size
       if (b.bar) h = Math.max(b.size+26, h);
-      // For squares, never shrink below 90
       if (!b.bar) h = Math.max(90, h);
       b.h = Math.min(h, CANVAS_H-b.y);
       saveQuizzes();
@@ -428,7 +476,6 @@ window.onQuizTitleChange = function(val) {
   quizzes[currentQuizIdx].title = val;
   saveQuizzes();
 };
-// BG image
 window.onBgChange = function(val) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   page.bg = val;
@@ -442,7 +489,6 @@ window.onPickBg = function() {
     saveQuizzes(); renderApp();
   }
 };
-// Save/Export/Import
 window.onSaveQuiz = function() {
   saveQuizzes();
   alert("Saved!");
@@ -487,14 +533,12 @@ window.onImportQuiz = function() {
   inp.click();
 };
 
-// Dragging/resizing blocks
 function attachCanvasEvents() {
   const canvas = document.getElementById('editor-canvas');
   if (!canvas) return;
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
   canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
-    // Drag anywhere in block except controls
     blockEl.onmousedown = e => {
       if (e.target.classList.contains('block-remove') ||
           e.target.classList.contains('block-content') ||
@@ -508,7 +552,6 @@ function attachCanvasEvents() {
       document.body.style.userSelect = "none";
       e.preventDefault();
     };
-    // Resize
     let resizeHandle = blockEl.querySelector('.resize-handle');
     if (resizeHandle) {
       resizeHandle.onmousedown = e => {
@@ -523,7 +566,6 @@ function attachCanvasEvents() {
       };
     }
   });
-  // Mouse events
   window.onmousemove = e => {
     if (dragIdx===-1) return;
     let block = page.blocks[dragIdx];
@@ -548,5 +590,5 @@ function attachCanvasEvents() {
 }
 
 if (quizzes.length===0) quizzes.push(blankQuiz());
-if (quizzes[0].pages.length===0) quizzes[0].pages.push({ bg: "static/1.png", blocks: [] });
+if (quizzes[0].pages.length===0) quizzes[0].pages.push({ bg: "static/2.png", blocks: [] });
 renderApp();
