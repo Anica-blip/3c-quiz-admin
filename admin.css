@@ -141,7 +141,10 @@ body {
   overflow: hidden;
   box-sizing: border-box;
   z-index: 2;
-  /* THE FIX: NO display: flex, NO flex-direction! */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   padding: 0;
 }
 .text-block.selected {
@@ -149,14 +152,6 @@ body {
   background: rgba(255,255,255,0.40);
 }
 .text-block .block-content {
-  direction: ltr !important;
-  unicode-bidi: plaintext !important;
-  writing-mode: horizontal-tb !important;
-  word-break: break-word !important;
-  white-space: pre-wrap !important;
-  font-size: inherit;
-  color: inherit;
-  text-align: left;
   width: 100%;
   min-height: 24px;
   height: auto;
@@ -164,9 +159,14 @@ body {
   background: transparent;
   border: none;
   resize: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
   padding: 0;
   margin: 0;
   overflow-y: auto;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
   display: block;
   vertical-align: top;
   max-height: none;
