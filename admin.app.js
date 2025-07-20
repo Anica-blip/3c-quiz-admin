@@ -1,4 +1,4 @@
-// admin.app.js - corrected so block expansion, font size, sidebar controls, and answer bar height all work as intended
+// admin.app.js - fixes: block text always visible at top, description block grows for long text, controls always present, font-size always matches, answer bar stays slim unless needed
 
 const CANVAS_W = 360, CANVAS_H = 640;
 
@@ -184,7 +184,7 @@ function renderApp() {
       .editor-canvas img.bg { position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:0;}
       .text-block { position:absolute;z-index:1;box-sizing:border-box;padding:0 12px;background:#fff8;border:2px solid #6cf3;border-radius:8px;transition:border-color .2s;
         display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start;
-        min-height: 24px; }
+        min-height: 24px;}
       .text-block.selected { border-color:#2e8cff; background:#e6f0ffcc;}
       .block-label {font-weight:bold;font-size:0.85em;background:#fff3;color:#006bb3;border-radius:6px;padding:2px 10px 2px 3px;position:absolute;left:10px;top:-20px;}
       .block-remove {position:absolute;top:-18px;right:6px; background:#f33;color:#fff;border:none;border-radius:5px;cursor:pointer;padding:0 7px; font-size:1em;}
@@ -202,8 +202,9 @@ function renderApp() {
         font-size:inherit; color:inherit;
         text-align:inherit;
         width:100%; min-height:24px; outline:none; background:transparent; border:none;
-        overflow-wrap:break-word; white-space:pre-line; resize:none;
-        display: block; vertical-align: top; padding: 2px 2px 0 2px; margin: 0;
+        overflow-wrap:break-word; white-space:pre-wrap; resize:none;
+        display: block; vertical-align: top; padding: 0; margin: 0;
+        max-height:none; overflow-y:auto;
       }
     </style>
   `;
@@ -237,7 +238,7 @@ function renderCanvas(page) {
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
               width:100%;min-height:24px;outline:none;background:transparent;border:none;
-              overflow-wrap:break-word;white-space:pre-line;resize:none;display:block;vertical-align:top;padding:2px 2px 0 2px;">
+              overflow-wrap:break-word;white-space:pre-wrap;resize:none;display:block;vertical-align:top;padding:0;margin:0;max-height:none;overflow-y:auto;">
             ${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}
           </div>
           <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
@@ -420,10 +421,9 @@ window.onBlockAlign = function(idx, val) {
 window.onBlockTextInput = function(bi, el) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[bi];
-  let text = el.innerText.replace(/\u200B/g, '').replace(/\r\n|\r|\n/g, ' '); // Remove extra linebreaks
+  let text = el.innerText.replace(/\u200B/g, '');
   if (b.maxlen) text = text.slice(0, b.maxlen);
   b.text = text;
-  // Only expand block height if content is taller than min
   setTimeout(()=>{
     let canvas = document.getElementById("editor-canvas");
     if (!canvas) return;
@@ -432,10 +432,11 @@ window.onBlockTextInput = function(bi, el) {
     if (contentEl) {
       contentEl.style.height = "auto";
       let box = contentEl.getBoundingClientRect();
-      let h = Math.max(b.size+8, box.height+8);
-      if (b.bar) h = Math.max(b.size+8, h); // Answer bars should not expand unless needed
-      if (!b.bar) h = Math.max(90, h);
-      b.h = Math.min(h, CANVAS_H-b.y);
+      // Only expand if content is taller than min, and for description blocks, allow up to 1000 letters.
+      let h = Math.max(b.size + 8, box.height + 8);
+      if (b.type === "desc") h = Math.max(120, box.height + 8);
+      if (b.type === "desc") h = Math.max(h, Math.floor(box.height + 8));
+      b.h = Math.min(h, CANVAS_H - b.y);
       saveQuizzes();
       renderApp();
     }
