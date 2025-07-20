@@ -1,13 +1,15 @@
-// 3c-quiz-admin v8 - Blocks centered, vertical stacking, bars for Title/Question/Answer, squares for Description/Result,
-// clean controls, correct text input, proper remove, autosave, navigation, default sensible positions
+// 3c-quiz-admin v9 - Title/Question/Answer are horizontal bars, height expands with font size AND text wrapping.
+// Description/Result are square blocks, centered, stack vertically, no overlap, correct text input, correct alignment, remove always works.
 
 const CANVAS_W = 360, CANVAS_H = 640;
+
+// Block type configs: shape, default sizes, label, input rules
 const BLOCK_TYPES = [
-  { type: "title", label: "Title", text: "Your Title", color: "#222222", size: 28, align: "center", bar: true },
-  { type: "desc", label: "Description", text: "Description...", color: "#444444", size: 17, align: "left", bar: false },
-  { type: "question", label: "Question", text: "Question text?", color: "#222222", size: 18, align: "left", bar: true },
-  { type: "answer", label: "Answer", text: "Answer option", color: "#003366", size: 16, align: "left", bar: true },
-  { type: "result", label: "Result", text: "Result text...", color: "#1B5E20", size: 20, align: "center", bar: false }
+  { type: "title", label: "Title", text: "Your Title", color: "#222222", size: 28, align: "center", bar: true, maxlen: 200 },
+  { type: "desc", label: "Description", text: "Description...", color: "#444444", size: 17, align: "left", bar: false, maxlen: 1000 },
+  { type: "question", label: "Question", text: "Question text?", color: "#222222", size: 18, align: "left", bar: true, maxlen: 200 },
+  { type: "answer", label: "Answer", text: "Answer option", color: "#003366", size: 16, align: "left", bar: true, maxlen: 200 },
+  { type: "result", label: "Result", text: "Result text...", color: "#1B5E20", size: 20, align: "center", bar: false, maxlen: 1000 }
 ];
 
 function blankQuiz() {
@@ -63,15 +65,13 @@ let currentQuizIdx = 0;
 let selectedPageIdx = 0;
 let selectedBlockIdx = -1;
 
-// Placement logic
+// Placement logic: blocks stack vertically, centered, spacing 22px between blocks
 function getNextBlockPosition(page, blockType, blockW, blockH) {
-  // Center X
   const x = Math.round((CANVAS_W - blockW) / 2);
-  // Find Y for stacking
-  let y = 40; // default top margin
+  let y = 40; // Title default
   if (page.blocks && page.blocks.length > 0) {
-    let lastBlock = page.blocks[page.blocks.length - 1];
-    y = lastBlock.y + lastBlock.h + 18; // 18px vertical gap
+    const last = page.blocks[page.blocks.length - 1];
+    y = last.y + last.h + 22;
   }
   // Clamp if too low
   if (y + blockH > CANVAS_H - 16) y = CANVAS_H - blockH - 16;
@@ -152,9 +152,9 @@ function renderApp() {
     <style>
       .editor-canvas { background:#e8e8f0; border-radius:16px; position:relative; box-shadow:0 2px 12px #0002; margin-bottom:12px; overflow:hidden;}
       .editor-canvas img.bg { position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:0;}
-      .text-block { position:absolute;z-index:1;box-sizing:border-box;padding:0 10px;background:#fff8;border:2px solid #6cf3;border-radius:8px;transition:border-color .2s;}
+      .text-block { position:absolute;z-index:1;box-sizing:border-box;padding:0 12px;background:#fff8;border:2px solid #6cf3;border-radius:8px;transition:border-color .2s;}
       .text-block.selected { border-color:#2e8cff; background:#e6f0ffcc;}
-      .block-label {font-weight:bold;font-size:0.85em;background:#fff3;color:#006bb3;border-radius:6px;padding:1px 8px 1px 3px;position:absolute;left:8px;top:-20px;}
+      .block-label {font-weight:bold;font-size:0.85em;background:#fff3;color:#006bb3;border-radius:6px;padding:2px 10px 2px 3px;position:absolute;left:10px;top:-20px;}
       .block-remove {position:absolute;top:-18px;right:6px; background:#f33;color:#fff;border:none;border-radius:5px;cursor:pointer;padding:0 7px; font-size:1em;}
       .resize-handle {position:absolute;right:0;bottom:0;width:15px;height:15px;border-radius:3px;border:1px solid #66c; background:#fff;cursor:nwse-resize;}
       .sidebar { float:left; width:180px; background:#f7fafd; min-height:${CANVAS_H}px; border-right:1px solid #e2e2e2; box-sizing:border-box; padding:10px; }
@@ -166,6 +166,10 @@ function renderApp() {
       .block-settings label {display:block;margin:4px 0;}
       .save-area button {margin-right:8px;margin-top:8px;}
       .danger {background:#f33!important;color:#fff!important;}
+      /* Bar blocks */
+      .text-block.bar {height:auto;}
+      /* Square blocks */
+      .text-block.square {height:auto;}
     </style>
   `;
   setTimeout(attachCanvasEvents, 30);
@@ -177,10 +181,11 @@ function renderCanvas(page) {
     <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;position:relative;">
       <img class="bg" src="${page.bg||''}" alt="bg">
       ${(page.blocks||[]).map((b,bi) => `
-        <div class="text-block${bi===selectedBlockIdx?' selected':''}"
+        <div class="text-block ${b.bar?'bar':'square'}${bi===selectedBlockIdx?' selected':''}"
           style="
             left:${b.x}px;top:${b.y}px;
-            width:${b.w}px;min-height:${b.h}px;max-width:${CANVAS_W-16}px;
+            width:${b.w}px;
+            min-height:${b.h}px;
             font-size:${b.size}px;
             color:${b.color};
             text-align:${b.align||'left'};
@@ -193,13 +198,11 @@ function renderCanvas(page) {
           <div class="block-content" contenteditable="true"
             oninput="onBlockTextInput(${bi},this)"
             spellcheck="false"
-            maxlength="${b.type==='desc'||b.type==='result' ? 1000 : 200}"
             style="
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
               width:100%;min-height:24px;max-height:none;outline:none;background:transparent;border:none;
-              overflow:visible;word-break:break-word;white-space:pre-wrap;resize:none;
-              ">
+              overflow:visible;word-break:break-word;white-space:pre-wrap;resize:none;">
             ${(b.text||"").replace(/</g,"&lt;").replace(/\n/g,"<br>")}
           </div>
           <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
@@ -316,11 +319,8 @@ window.onAddBlock = function(type) {
 
   // Sizing
   let blockW = tpl.bar ? CANVAS_W-48 : CANVAS_W-48;
-  let blockH = tpl.bar ? 42 : 90;
-  if(type==="title") { blockH=56; }
-  if(type==="answer") { blockH=40; }
-  if(type==="question") { blockH=48; }
-  if(type==="desc"||type==="result") { blockH=90; }
+  let blockH = tpl.bar ? tpl.size+26 : 120;
+  if (type==="desc"||type==="result") blockH = 120;
   // Placement
   let pos = getNextBlockPosition(page, type, blockW, blockH);
 
@@ -334,7 +334,9 @@ window.onAddBlock = function(type) {
     h: blockH,
     size: tpl.size,
     color: tpl.color,
-    align: tpl.align
+    align: tpl.align,
+    bar: tpl.bar,
+    maxlen: tpl.maxlen
   });
   selectedBlockIdx = page.blocks.length-1;
   saveQuizzes();
@@ -370,10 +372,8 @@ window.onBlockTextInput = function(bi, el) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let b = page.blocks[bi];
   // Clean up pasted/typed HTML to text
-  let text = el.innerText.replace(/\u200B/g, ''); // Remove zero-width space
-  if (b.type==='desc'||b.type==='result') {
-    text = text.slice(0,1000);
-  }
+  let text = el.innerText.replace(/\u200B/g, '');
+  if (b.maxlen) text = text.slice(0, b.maxlen);
   b.text = text;
   // Autosize block height to fit content (multi-line)
   setTimeout(()=>{
@@ -384,7 +384,11 @@ window.onBlockTextInput = function(bi, el) {
     if (contentEl) {
       contentEl.style.height = "auto";
       let box = contentEl.getBoundingClientRect();
-      let h = Math.max(24, box.height+12);
+      let h = Math.max(b.size+26, box.height+18);
+      // For bars, never shrink below font size
+      if (b.bar) h = Math.max(b.size+26, h);
+      // For squares, never shrink below 90
+      if (!b.bar) h = Math.max(90, h);
       b.h = Math.min(h, CANVAS_H-b.y);
       saveQuizzes();
       renderApp();
