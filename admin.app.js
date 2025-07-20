@@ -141,18 +141,14 @@ function renderCanvas(page) {
           data-idx="${bi}"
           tabindex="0"
           onclick="onSelectBlock(${bi});"
-          >
+        >
           <span class="block-label">${b.label||b.type}</span>
           <div class="block-content" contenteditable="true" dir="ltr"
             oninput="onBlockTextInput(${bi},this)"
             spellcheck="true"
-            style="
-              direction:ltr;
-              font-size:inherit;color:inherit;
-              text-align:${b.align||'left'};
-              width:100%;min-height:24px;outline:none;background:transparent;border:none;
-              overflow-wrap:break-word;white-space:pre-wrap;resize:none;display:block;vertical-align:top;padding:0;margin:0;max-height:none;overflow-y:auto;"
-            >${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}</div>
+            style="direction:ltr; unicode-bidi:plaintext; font-size:inherit;color:inherit; text-align:${b.align||'left'}; width:100%;min-height:24px;outline:none;background:transparent;border:none;overflow-wrap:break-word;white-space:pre-wrap;resize:none;display:block;vertical-align:top;padding:0;margin:0;max-height:none;overflow-y:auto;">
+            ${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}
+          </div>
           <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
         </div>
       `).join('')}
@@ -206,7 +202,6 @@ function renderBlockSettings(page) {
   `;
 }
 
-// Remove block from sidebar button
 window.onRemoveBlockSidebar = function() {
   if (selectedBlockIdx < 0) return;
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
@@ -437,9 +432,10 @@ function attachCanvasEvents() {
   let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
   canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
     blockEl.onmousedown = e => {
-      if (e.target.classList.contains('block-label') ||
-          e.target.classList.contains('block-content') ||
-          e.target.classList.contains('resize-handle')) return;
+      // FIX: Only allow drag if NOT clicking inside .block-content
+      if (e.target.classList.contains('block-content') ||
+          e.target.classList.contains('resize-handle') ||
+          e.target.classList.contains('block-label')) return;
       dragIdx = bi;
       resizing = false;
       startX = e.clientX;
