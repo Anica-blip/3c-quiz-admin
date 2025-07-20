@@ -1,49 +1,13 @@
-// admin.app.js - critical fixes for block controls, top-aligned text, expanding blocks, no cropping or overlap
+// admin.app.js - minimal, 4 block types only, no preloaded blocks, exact formatting per button/defaults, always top-left aligned, auto-expanding for text
 
 const CANVAS_W = 360, CANVAS_H = 640;
 
-const PAGE_LAYOUTS = {
-  "2.png": [
-    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
-    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
-  ],
-  "3a.png": "qa", "3b.png": "qa", "3c.png": "qa", "3d.png": "qa", "3e.png": "qa", "3f.png": "qa", "3g.png": "qa", "3h.png": "qa",
-  "4.png": [
-    { type: "title", label: "Title", x: 42, y: 116, w: 275, h: 24, align: "left", size: 28 },
-    { type: "desc", label: "Description", x: 42, y: 206, w: 275, h: 120, align: "left", size: 17 }
-  ],
-  "5a.png": [
-    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
-    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
-  ],
-  "5b.png": [
-    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
-    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
-  ],
-  "5c.png": [
-    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
-    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
-  ],
-  "5d.png": [
-    { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
-    { type: "desc", label: "Description", x: 42, y: 318, w: 275, h: 120, align: "left", size: 17 }
-  ]
-};
-
-const QA_BLOCKS = [
-  { type: "question", label: "Question", x: 31, y: 109, w: 294, h: 24, align: "left", size: 18 },
-  { type: "answer", label: "A", x: 31, y: 216, w: 294, h: 24, align: "left", size: 16 },
-  { type: "answer", label: "B", x: 31, y: 298, w: 294, h: 24, align: "left", size: 16 },
-  { type: "answer", label: "C", x: 31, y: 374, w: 294, h: 24, align: "left", size: 16 },
-  { type: "answer", label: "D", x: 31, y: 464, w: 294, h: 24, align: "left", size: 16 }
-];
-
+// Only 4 block types with exact defaults specified by user
 const BLOCK_TYPES = [
-  { type: "title", label: "Title", text: "Your Title", color: "#222222", size: 28, align: "left", bar: true, maxlen: 200 },
-  { type: "desc", label: "Description", text: "Description...", color: "#444444", size: 17, align: "left", bar: false, maxlen: 1000 },
-  { type: "question", label: "Question", text: "Question text?", color: "#222222", size: 18, align: "left", bar: true, maxlen: 200 },
-  { type: "answer", label: "Answer", text: "Answer option", color: "#003366", size: 16, align: "left", bar: true, maxlen: 200 },
-  { type: "result", label: "Result", text: "Result text...", color: "#1B5E20", size: 20, align: "center", bar: false, maxlen: 1000 }
+  { type: "title", label: "Title", w: 275, h: 55, x: 42, y: 231, size: 18, align: "left", color: "#222222", maxlen: 200 },
+  { type: "desc", label: "Description", w: 275, h: 256, x: 42, y: 294, size: 16, align: "left", color: "#444444", maxlen: 1000 },
+  { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 },
+  { type: "answer", label: "Answer", w: 294, h: 55, x: 31, y: 216, size: 16, align: "left", color: "#003366", maxlen: 200 }
 ];
 
 function blankQuiz() {
@@ -56,7 +20,7 @@ function blankQuiz() {
   };
 }
 function loadQuizzes() {
-  let q = localStorage.getItem('3c-quiz-admin-quizzes-v2');
+  let q = localStorage.getItem('3c-quiz-admin-quizzes-v3');
   if (!q) return [blankQuiz()];
   try {
     const arr = JSON.parse(q);
@@ -67,7 +31,7 @@ function loadQuizzes() {
   }
 }
 function saveQuizzes() {
-  localStorage.setItem('3c-quiz-admin-quizzes-v2', JSON.stringify(quizzes));
+  localStorage.setItem('3c-quiz-admin-quizzes-v3', JSON.stringify(quizzes));
 }
 
 let quizzes = loadQuizzes();
@@ -75,44 +39,12 @@ let currentQuizIdx = 0;
 let selectedPageIdx = 0;
 let selectedBlockIdx = -1;
 
-function getPageLayout(page) {
-  if (!page || !page.bg) return null;
-  let fname = page.bg.replace(/^static\//, '');
-  let layout = PAGE_LAYOUTS[fname];
-  if (!layout) return null;
-  if (layout === "qa") return QA_BLOCKS;
-  return layout;
-}
-
-function ensurePageBlocks(page) {
-  let fname = page.bg.replace(/^static\//, '');
-  let layout = getPageLayout(page);
-  if (page.blocks.length === 0 && layout) {
-    page.blocks = layout.map(l => ({
-      type: l.type,
-      label: l.label,
-      text: "",
-      x: l.x,
-      y: l.y,
-      w: l.w,
-      h: l.h,
-      size: l.size,
-      color: BLOCK_TYPES.find(b=>b.type===l.type)?.color || "#222",
-      align: l.align,
-      bar: ["title","question","answer"].includes(l.type),
-      maxlen: BLOCK_TYPES.find(b=>b.type===l.type)?.maxlen || 200
-    }));
-  }
-}
-
 function renderApp() {
   const app = document.getElementById('app');
   if (!app) return;
   const quiz = quizzes[currentQuizIdx] || blankQuiz();
   const pages = quiz.pages || [blankQuiz().pages[0]];
   const page = pages[selectedPageIdx] || pages[0];
-
-  ensurePageBlocks(page);
 
   app.innerHTML = `
     <div class="sidebar">
@@ -178,36 +110,6 @@ function renderApp() {
         </div>
       </div>
     </div>
-    <style>
-      .editor-canvas { background:#e8e8f0; border-radius:16px; position:relative; box-shadow:0 2px 12px #0002; margin-bottom:12px; overflow:hidden;}
-      .editor-canvas img.bg { position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:0;}
-      .text-block { 
-        position:absolute;z-index:1;box-sizing:border-box;padding:0 12px;background:#fff8;border:2px solid #6cf3;border-radius:8px;transition:border-color .2s;
-        display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
-        min-height: 24px; 
-      }
-      .text-block.selected { border-color:#2e8cff; background:#e6f0ffcc;}
-      .block-label {font-weight:bold;font-size:0.85em;background:#fff3;color:#006bb3;border-radius:6px;padding:2px 10px 2px 3px;position:absolute;left:10px;top:-20px;}
-      .block-remove {position:absolute;top:-18px;right:6px; background:#f33;color:#fff;border:none;border-radius:5px;cursor:pointer;padding:0 7px; font-size:1em;}
-      .resize-handle {position:absolute;right:0;bottom:0;width:15px;height:15px;border-radius:3px;border:1px solid #66c; background:#fff;cursor:nwse-resize;}
-      .sidebar { float:left; width:180px; background:#f7fafd; min-height:${CANVAS_H}px; border-right:1px solid #e2e2e2; box-sizing:border-box; padding:10px; }
-      .mainpanel { margin-left:190px; min-width:400px; }
-      .page-list ul {list-style:none;padding:0;margin:0;}
-      .page-list li {margin-bottom:7px;display:flex;align-items:center;}
-      .page-img-thumb {width:28px;height:28px;object-fit:cover;border-radius:6px;margin-right:5px;}
-      .img-filename {font-size:0.9em;color:#777;}
-      .block-settings label {display:block;margin:4px 0;}
-      .save-area button {margin-right:8px;margin-top:8px;}
-      .danger {background:#f33!important;color:#fff!important;}
-      .block-content {
-        font-size:inherit; color:inherit;
-        text-align:inherit;
-        width:100%; min-height:24px; outline:none; background:transparent; border:none;
-        overflow-wrap:break-word; white-space:pre-wrap; resize:none;
-        display: block; vertical-align: top; padding: 0; margin: 0;
-        max-height:none; overflow-y:auto;
-      }
-    </style>
   `;
   setTimeout(attachCanvasEvents, 30);
 }
@@ -251,7 +153,6 @@ function renderCanvas(page) {
 }
 
 function renderBlockSettings(page) {
-  // Always show block controls for the selected block, any page
   let b = (page.blocks||[])[selectedBlockIdx];
   if (!b) return `<div style="margin-top:20px;">Select a block to edit its settings here.</div>`;
   return `
@@ -300,20 +201,7 @@ function renderBlockSettings(page) {
 
 window.onAddPage = function() {
   let quiz = quizzes[currentQuizIdx];
-  let suggestion = "static/2.png";
-  let lastBg = quiz.pages.length>0 ? quiz.pages[quiz.pages.length-1].bg : "static/2.png";
-  let match = lastBg.match(/^static\/(\d+)([a-z]?)\.png$/);
-  if (match) {
-    let n = parseInt(match[1]);
-    let alpha = match[2];
-    if (alpha) {
-      let nextAlpha = String.fromCharCode(alpha.charCodeAt(0)+1);
-      suggestion = `static/${n}${nextAlpha}.png`;
-    } else {
-      suggestion = `static/${n+1}.png`;
-    }
-  }
-  quiz.pages.push({ bg: suggestion, blocks: [] });
+  quiz.pages.push({ bg: "static/2.png", blocks: [] });
   selectedPageIdx = quiz.pages.length-1;
   selectedBlockIdx = -1;
   saveQuizzes();
@@ -369,26 +257,15 @@ window.onAddBlock = function(type) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let tpl = BLOCK_TYPES.find(b => b.type===type);
   page.blocks = page.blocks||[];
-  let blockW = tpl.bar ? CANVAS_W-48 : CANVAS_W-48;
-  let blockH = tpl.bar ? tpl.size+8 : 120;
-  if (type==="desc"||type==="result") blockH = 120;
-  let x = Math.round((CANVAS_W-blockW)/2);
-  let y = 40;
-  if (page.blocks.length > 0) {
-    let last = page.blocks[page.blocks.length-1];
-    y = last.y + last.h + 22;
-  }
   page.blocks.push({
-    type,
+    type: tpl.type,
     label: tpl.label,
     text: "",
-    x, y,
-    w: blockW,
-    h: blockH,
+    x: tpl.x, y: tpl.y,
+    w: tpl.w, h: tpl.h,
     size: tpl.size,
     color: tpl.color,
     align: tpl.align,
-    bar: tpl.bar,
     maxlen: tpl.maxlen
   });
   selectedBlockIdx = page.blocks.length-1;
@@ -435,10 +312,7 @@ window.onBlockTextInput = function(bi, el) {
     if (contentEl) {
       contentEl.style.height = "auto";
       let box = contentEl.getBoundingClientRect();
-      // Expand block height as needed
-      let h = Math.max(b.size + 8, box.height + 8);
-      // For description blocks, allow expansion up to a large value!
-      if (b.type === "desc") h = Math.max(120, box.height + 8);
+      let h = Math.max(b.h, box.height + 8);
       b.h = Math.min(h, CANVAS_H - b.y);
       saveQuizzes();
       renderApp();
