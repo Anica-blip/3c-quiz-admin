@@ -1,13 +1,12 @@
-// admin.app.js - minimal, 4 block types only, no preloaded blocks, exact formatting per button/defaults, always top-left aligned, auto-expanding for text
+// FIX: Blocks always allow typing/pasting text as soon as added -- contenteditable works!
 
 const CANVAS_W = 360, CANVAS_H = 640;
 
-// Only 4 block types with exact defaults specified by user
 const BLOCK_TYPES = [
   { type: "title", label: "Title", w: 275, h: 55, x: 42, y: 231, size: 18, align: "left", color: "#222222", maxlen: 200 },
   { type: "desc", label: "Description", w: 275, h: 256, x: 42, y: 294, size: 16, align: "left", color: "#444444", maxlen: 1000 },
-  { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 },
-  { type: "answer", label: "Answer", w: 294, h: 55, x: 31, y: 216, size: 16, align: "left", color: "#003366", maxlen: 200 }
+  { type: "question", label: "Question", w: 294, h: 24, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 },
+  { type: "answer", label: "Answer", w: 294, h: 24, x: 31, y: 216, size: 16, align: "left", color: "#003366", maxlen: 200 }
 ];
 
 function blankQuiz() {
@@ -63,6 +62,7 @@ function renderApp() {
         </ul>
         <div class="page-actions">
           <button onclick="onAddPage()">+ Add Page</button>
+          <button onclick="onDuplicatePage()">Duplicate Page</button>
           <button onclick="onMovePageUp()" ${selectedPageIdx===0?'disabled':''}>&uarr;</button>
           <button onclick="onMovePageDown()" ${selectedPageIdx===pages.length-1?'disabled':''}>&darr;</button>
         </div>
@@ -112,6 +112,17 @@ function renderApp() {
     </div>
   `;
   setTimeout(attachCanvasEvents, 30);
+  // Focus first block if just created
+  setTimeout(()=>{
+    if (selectedBlockIdx >= 0) {
+      let canvas = document.getElementById("editor-canvas");
+      if (canvas) {
+        let blockEls = canvas.querySelectorAll('.text-block');
+        let contentEl = blockEls[selectedBlockIdx]?.querySelector('.block-content');
+        if (contentEl) contentEl.focus();
+      }
+    }
+  }, 100);
 }
 
 function renderCanvas(page) {
@@ -142,9 +153,8 @@ function renderCanvas(page) {
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
               width:100%;min-height:24px;outline:none;background:transparent;border:none;
-              overflow-wrap:break-word;white-space:pre-wrap;resize:none;display:block;vertical-align:top;padding:0;margin:0;max-height:none;overflow-y:auto;">
-            ${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}
-          </div>
+              overflow-wrap:break-word;white-space:pre-wrap;resize:none;display:block;vertical-align:top;padding:0;margin:0;max-height:none;overflow-y:auto;"
+            >${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}</div>
           <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
         </div>
       `).join('')}
@@ -207,6 +217,19 @@ window.onAddPage = function() {
   saveQuizzes();
   renderApp();
 }
+window.onDuplicatePage = function() {
+  let quiz = quizzes[currentQuizIdx];
+  let currentPage = quiz.pages[selectedPageIdx];
+  let newPage = {
+    bg: currentPage.bg,
+    blocks: currentPage.blocks.map(b => ({...b}))
+  };
+  quiz.pages.push(newPage);
+  selectedPageIdx = quiz.pages.length-1;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+}
 window.onRemovePage = function(idx) {
   let quiz = quizzes[currentQuizIdx];
   if (quiz.pages.length <= 1) return;
@@ -260,7 +283,7 @@ window.onAddBlock = function(type) {
   page.blocks.push({
     type: tpl.type,
     label: tpl.label,
-    text: "",
+    text: "", // <-- Always empty, so you can type
     x: tpl.x, y: tpl.y,
     w: tpl.w, h: tpl.h,
     size: tpl.size,
