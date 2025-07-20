@@ -1,248 +1,123 @@
-body {
-  background: #f9f9f9;
-  font-family: sans-serif;
-  margin: 0;
-  padding: 0;
+const CANVAS_W = 360, CANVAS_H = 640;
+
+const BLOCK_TYPES = [
+  { type: "title", label: "Title", w: 275, h: 55, x: 42, y: 231, size: 18, align: "left", color: "#222222", maxlen: 200 },
+  { type: "desc", label: "Description", w: 275, h: 256, x: 42, y: 294, size: 16, align: "left", color: "#444444", maxlen: 1000 },
+  { type: "question", label: "Question", w: 294, h: 24, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 },
+  { type: "answer", label: "Answer", w: 294, h: 24, x: 31, y: 216, size: 16, align: "left", color: "#003366", maxlen: 200 }
+];
+
+function blankQuiz() {
+  return {
+    id: "quiz.01",
+    title: "New Quiz",
+    pages: [
+      { bg: "static/2.png", blocks: [] }
+    ]
+  };
 }
-#app {
-  max-width: 1100px;
-  margin: 26px auto;
-  padding: 12px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 3px 30px rgba(0,0,0,0.06);
-  min-height: 80vh;
-  display: flex;
-  flex-direction: row;
-  gap: 0;
-}
-.sidebar {
-  width: 210px;
-  background: #f2f4fa;
-  border-radius: 10px 0 0 10px;
-  padding: 12px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  border-right: 1.5px solid #e3e7f2;
-  min-height: 80vh;
-}
-.page-list {
-  flex: 1;
-}
-.page-list strong {
-  font-size: 1.1em;
-}
-.page-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.page-list li {
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.page-list button {
-  border: none;
-  background: none;
-  color: #0057ff;
-  font-size: 1em;
-  cursor: pointer;
-  text-align: left;
-  padding: 0 4px;
-  border-radius: 4px;
-  transition: background 0.14s;
-}
-.page-list button.active {
-  background: #0057ff;
-  color: #fff;
-}
-.page-list .img-filename {
-  font-size: 0.95em;
-  color: #222;
-  margin-left: 2px;
-}
-.page-actions {
-  margin-top: 5px;
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-.block-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.block-controls button {
-  background: #0057ff;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  margin-bottom: 2px;
-  padding: 5px 10px;
-  cursor: pointer;
-  font-size: 1em;
-  text-align: left;
-  transition: background 0.14s;
-}
-.block-controls button:hover {
-  background: #003fa1;
-}
-.mainpanel {
-  flex: 1;
-  padding: 0 0 0 30px;
-}
-.header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-.header h1 {
-  flex: 1;
-  font-size: 1.4em;
-  margin: 0;
-}
-.editor-canvas-wrap {
-  display: flex;
-  justify-content: flex-start;
-  align-items: flex-start;
-  gap: 24px;
-}
-.editor-canvas {
-  position: relative;
-  width: 360px;
-  height: 640px;
-  background: #222;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.14);
-  overflow: hidden;
-  border-radius: 16px;
-  margin-bottom: 8px;
-}
-.editor-canvas img.bg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  pointer-events: none;
-  position: absolute;
-  top: 0; left: 0;
-  z-index: 1;
-}
-.text-block {
-  position: absolute;
-  min-width: 60px;
-  min-height: 24px;
-  border: 2px dashed #77aaff;
-  background: rgba(255,255,255,0.28);
-  cursor: move;
-  resize: both;
-  overflow: hidden;
-  box-sizing: border-box;
-  z-index: 2;
-  /* REMOVE display: flex and flex-direction: column! */
-  padding: 0;
-}
-.text-block.selected {
-  border: 2px solid #0057ff;
-  background: rgba(255,255,255,0.40);
-}
-.text-block .block-content {
-  direction: ltr !important;
-  unicode-bidi: plaintext !important;
-  writing-mode: horizontal-tb !important;
-  word-break: break-word !important;
-  white-space: pre-wrap !important;
-  font-size: inherit;
-  color: inherit;
-  text-align: left;
-  width: 100%;
-  min-height: 24px;
-  height: auto;
-  outline: none;
-  background: transparent;
-  border: none;
-  resize: none;
-  padding: 0;
-  margin: 0;
-  overflow-y: auto;
-  display: block;
-  vertical-align: top;
-  max-height: none;
-}
-.text-block .block-label {
-  position: absolute;
-  top: -20px;
-  left: 0;
-  font-size: 0.8em;
-  background: #eef;
-  color: #223;
-  border-radius: 4px 4px 0 0;
-  padding: 0 4px;
-  pointer-events: none;
-  opacity: 0.65;
-}
-.block-settings {
-  margin: 8px 0;
-  display: flex;
-  gap: 9px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-input[type="color"], input[type="number"], select {
-  margin-right: 6px;
-}
-button {
-  background: #0057ff;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 6px 12px;
-  cursor: pointer;
-  font-size: 1em;
-  transition: background 0.16s;
-}
-button:disabled {
-  background: #aaa;
-  cursor: not-allowed;
-}
-button.danger {
-  background: #d33;
-}
-.save-area {
-  margin-top: 18px;
-  text-align: right;
-}
-.page-img-thumb {
-  width: 28px;
-  height: 28px;
-  object-fit: cover;
-  border-radius: 5px;
-  border: 1.5px solid #ddd;
-  margin-right: 4px;
-  vertical-align: middle;
-}
-@media (max-width: 950px) {
-  #app {
-    max-width: 100vw;
-    margin: 0;
-    padding: 0;
-    border-radius: 0;
-    box-shadow: none;
-    min-height: 100vh;
-    flex-direction: column;
+function loadQuizzes() {
+  let q = localStorage.getItem('3c-quiz-admin-quizzes-v3');
+  if (!q) return [blankQuiz()];
+  try {
+    const arr = JSON.parse(q);
+    if (!Array.isArray(arr) || arr.length === 0) return [blankQuiz()];
+    return arr;
+  } catch {
+    return [blankQuiz()];
   }
-  .sidebar {
-    width: 100vw;
-    min-height: unset;
-    border-radius: 0;
-    border-right: none;
-    border-bottom: 2px solid #e3e7f2;
-    flex-direction: row;
-    gap: 20px;
-  }
-  .mainpanel {
-    padding: 0;
-  }
+}
+function saveQuizzes() {
+  localStorage.setItem('3c-quiz-admin-quizzes-v3', JSON.stringify(quizzes));
+}
+
+let quizzes = loadQuizzes();
+let currentQuizIdx = 0;
+let selectedPageIdx = 0;
+let selectedBlockIdx = -1;
+
+function renderApp() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  const quiz = quizzes[currentQuizIdx] || blankQuiz();
+  const pages = quiz.pages || [blankQuiz().pages[0]];
+  const page = pages[selectedPageIdx] || pages[0];
+
+  app.innerHTML = `
+    <div class="mainpanel">
+      <div class="header">
+        <h1>3c-quiz-admin</h1>
+      </div>
+      <div class="editor-canvas-wrap">
+        <div>
+          ${renderCanvas(page)}
+        </div>
+      </div>
+    </div>
+  `;
+  setTimeout(attachCanvasEvents, 30);
+  setTimeout(()=>{
+    if (selectedBlockIdx >= 0) {
+      let canvas = document.getElementById("editor-canvas");
+      if (canvas) {
+        let blockEls = canvas.querySelectorAll('.text-block');
+        let contentEl = blockEls[selectedBlockIdx]?.querySelector('.block-content');
+        if (contentEl) contentEl.focus();
+      }
+    }
+  }, 100);
+}
+
+function renderCanvas(page) {
+  if (!page) return `<div class="editor-canvas"></div>`;
+  return `
+    <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;position:relative;">
+      <img class="bg" src="${page.bg||''}" alt="bg">
+      ${(page.blocks||[]).map((b,bi) => `
+        <div class="text-block${bi===selectedBlockIdx?' selected':''}"
+          style="
+            left:${b.x}px;top:${b.y}px;
+            width:${b.w}px;
+            height:${b.h}px;
+            font-size:${b.size}px;
+            color:${b.color};
+            text-align:${b.align||'left'};
+            "
+          data-idx="${bi}"
+          tabindex="0"
+          onclick="onSelectBlock(${bi});"
+        >
+          <span class="block-label">${b.label||b.type}</span>
+          <div class="block-content" contenteditable="true" dir="ltr"
+            oninput="onBlockTextInput(${bi},this)"
+            spellcheck="true"
+            style="direction:ltr; unicode-bidi:plaintext; font-size:inherit;color:inherit; text-align:${b.align||'left'}; width:100%;min-height:24px;outline:none;background:transparent;border:none;overflow-wrap:break-word;white-space:pre-wrap;resize:none;display:block;vertical-align:top;padding:0;margin:0;max-height:none;overflow-y:auto;">
+            ${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+window.onBlockTextInput = function(bi, el) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let b = page.blocks[bi];
+  let text = el.innerText.replace(/\u200B/g, '');
+  if (b.maxlen) text = text.slice(0, b.maxlen);
+  b.text = text;
+  saveQuizzes();
+};
+
+window.onSelectBlock = function(idx) {
+  selectedBlockIdx = idx;
+  renderApp();
+};
+
+if (quizzes.length===0) quizzes.push(blankQuiz());
+if (quizzes[0].pages.length===0) quizzes[0].pages.push({ bg: "static/2.png", blocks: [] });
+renderApp();
+
+function attachCanvasEvents() {
+  // Drag/resize code can be added if needed, but keep .text-block NOT flex
 }
