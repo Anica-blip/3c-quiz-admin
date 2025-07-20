@@ -1,7 +1,8 @@
-// 3c-quiz-admin v10 - Fixed block positions by page, editable, W x H / X x Y sidebar, left/center alignment for Title, text always starts left for others, always editable, individual delete works.
+// 3c-quiz-admin v12 - FIXED: block positions for 4.png and 5a–5d.png, proper text input, sidebar editing, individual delete
 
 const CANVAS_W = 360, CANVAS_H = 640;
 
+// Exact layouts for specific pages
 const PAGE_LAYOUTS = {
   "2.png": [
     { type: "title", label: "Title", x: 42, y: 229, w: 275, h: 24, align: "left", size: 28 },
@@ -30,7 +31,6 @@ const PAGE_LAYOUTS = {
   ]
 };
 
-// Q&A layout blocks
 const QA_BLOCKS = [
   { type: "question", label: "Question", x: 31, y: 109, w: 294, h: 24, align: "left", size: 18 },
   { type: "answer", label: "A", x: 31, y: 216, w: 294, h: 24, align: "left", size: 16 },
@@ -52,7 +52,7 @@ function blankQuiz() {
     id: "quiz.01",
     title: "New Quiz",
     pages: [
-      { bg: "static/1.png", blocks: [] }
+      { bg: "static/2.png", blocks: [] }
     ]
   };
 }
@@ -85,11 +85,10 @@ function getPageLayout(page) {
   return layout;
 }
 
-// Add default blocks to a new page if a known bg
+// Add default blocks to a new page if known bg and no blocks
 function ensurePageBlocks(page) {
   let fname = page.bg.replace(/^static\//, '');
   let layout = getPageLayout(page);
-  // Only if no blocks present and layout is known
   if (page.blocks.length === 0 && layout) {
     page.blocks = layout.map(l => ({
       type: l.type,
@@ -115,7 +114,6 @@ function renderApp() {
   const pages = quiz.pages || [blankQuiz().pages[0]];
   const page = pages[selectedPageIdx] || pages[0];
 
-  // Ensure default blocks if it's a known layout
   ensurePageBlocks(page);
 
   app.innerHTML = `
@@ -201,6 +199,13 @@ function renderApp() {
       .danger {background:#f33!important;color:#fff!important;}
       .text-block.bar {height:auto;}
       .text-block.square {height:auto;}
+      .block-content {
+        font-size:inherit;color:inherit;
+        text-align:inherit;
+        width:100%;min-height:24px;max-height:none;outline:none;background:transparent;border:none;
+        overflow-wrap:break-word; /* Fix: wrap text normally */
+        word-break:break-word;white-space:pre-line;resize:none;
+      }
     </style>
   `;
   setTimeout(attachCanvasEvents, 30);
@@ -233,8 +238,9 @@ function renderCanvas(page) {
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
               width:100%;min-height:24px;max-height:none;outline:none;background:transparent;border:none;
-              overflow:visible;word-break:break-word;white-space:pre-wrap;resize:none;">
-            ${(b.text||"").replace(/</g,"&lt;").replace(/\n/g,"<br>")}
+              overflow-wrap:break-word;
+              word-break:break-word;white-space:pre-line;resize:none;">
+            ${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}
           </div>
           <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
         </div>
@@ -294,14 +300,12 @@ function renderBlockSettings(page) {
 window.onAddPage = function() {
   let quiz = quizzes[currentQuizIdx];
   let suggestion = "static/2.png";
-  // Try to find next logical image name
   let lastBg = quiz.pages.length>0 ? quiz.pages[quiz.pages.length-1].bg : "static/2.png";
   let match = lastBg.match(/^static\/(\d+)([a-z]?)\.png$/);
   if (match) {
     let n = parseInt(match[1]);
     let alpha = match[2];
     if (alpha) {
-      // increment letter if 3a, 3b etc
       let nextAlpha = String.fromCharCode(alpha.charCodeAt(0)+1);
       suggestion = `static/${n}${nextAlpha}.png`;
     } else {
@@ -366,7 +370,6 @@ window.onAddBlock = function(type) {
   let tpl = BLOCK_TYPES.find(b => b.type===type);
   page.blocks = page.blocks||[];
 
-  // Default to center block if not known layout
   let blockW = tpl.bar ? CANVAS_W-48 : CANVAS_W-48;
   let blockH = tpl.bar ? tpl.size+26 : 120;
   if (type==="desc"||type==="result") blockH = 120;
@@ -463,7 +466,6 @@ window.onBlockPos = function(bi, prop, val) {
   renderApp();
 };
 
-// Quiz controls
 window.onNewQuiz = function() {
   quizzes.push(blankQuiz());
   currentQuizIdx = quizzes.length-1;
