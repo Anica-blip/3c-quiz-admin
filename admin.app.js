@@ -1,4 +1,4 @@
-// admin.app.js - fixes: block text always visible at top, description block grows for long text, controls always present, font-size always matches, answer bar stays slim unless needed
+// admin.app.js - critical fixes for block controls, top-aligned text, expanding blocks, no cropping or overlap
 
 const CANVAS_W = 360, CANVAS_H = 640;
 
@@ -84,7 +84,6 @@ function getPageLayout(page) {
   return layout;
 }
 
-// Add default blocks to a new page if known bg and no blocks
 function ensurePageBlocks(page) {
   let fname = page.bg.replace(/^static\//, '');
   let layout = getPageLayout(page);
@@ -182,9 +181,11 @@ function renderApp() {
     <style>
       .editor-canvas { background:#e8e8f0; border-radius:16px; position:relative; box-shadow:0 2px 12px #0002; margin-bottom:12px; overflow:hidden;}
       .editor-canvas img.bg { position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;z-index:0;}
-      .text-block { position:absolute;z-index:1;box-sizing:border-box;padding:0 12px;background:#fff8;border:2px solid #6cf3;border-radius:8px;transition:border-color .2s;
-        display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start;
-        min-height: 24px;}
+      .text-block { 
+        position:absolute;z-index:1;box-sizing:border-box;padding:0 12px;background:#fff8;border:2px solid #6cf3;border-radius:8px;transition:border-color .2s;
+        display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+        min-height: 24px; 
+      }
       .text-block.selected { border-color:#2e8cff; background:#e6f0ffcc;}
       .block-label {font-weight:bold;font-size:0.85em;background:#fff3;color:#006bb3;border-radius:6px;padding:2px 10px 2px 3px;position:absolute;left:10px;top:-20px;}
       .block-remove {position:absolute;top:-18px;right:6px; background:#f33;color:#fff;border:none;border-radius:5px;cursor:pointer;padding:0 7px; font-size:1em;}
@@ -228,6 +229,7 @@ function renderCanvas(page) {
             "
           data-idx="${bi}"
           tabindex="0"
+          onclick="onSelectBlock(${bi});"
           >
           <span class="block-label">${b.label||b.type}</span>
           <button class="block-remove" onclick="onRemoveBlock(${bi});event.stopPropagation();" title="Remove">&times;</button>
@@ -249,6 +251,7 @@ function renderCanvas(page) {
 }
 
 function renderBlockSettings(page) {
+  // Always show block controls for the selected block, any page
   let b = (page.blocks||[])[selectedBlockIdx];
   if (!b) return `<div style="margin-top:20px;">Select a block to edit its settings here.</div>`;
   return `
@@ -432,10 +435,10 @@ window.onBlockTextInput = function(bi, el) {
     if (contentEl) {
       contentEl.style.height = "auto";
       let box = contentEl.getBoundingClientRect();
-      // Only expand if content is taller than min, and for description blocks, allow up to 1000 letters.
+      // Expand block height as needed
       let h = Math.max(b.size + 8, box.height + 8);
+      // For description blocks, allow expansion up to a large value!
       if (b.type === "desc") h = Math.max(120, box.height + 8);
-      if (b.type === "desc") h = Math.max(h, Math.floor(box.height + 8));
       b.h = Math.min(h, CANVAS_H - b.y);
       saveQuizzes();
       renderApp();
