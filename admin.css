@@ -141,23 +141,19 @@ body {
   overflow: hidden;
   box-sizing: border-box;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
+  /* CRITICAL: REMOVE flex, flex-direction here! */
   padding: 0;
 }
 .text-block.selected {
   border: 2px solid #0057ff;
   background: rgba(255,255,255,0.40);
 }
-/* CRITICAL FIX BELOW */
 .text-block .block-content {
   direction: ltr !important;
   unicode-bidi: plaintext !important;
   writing-mode: horizontal-tb !important; /* force horizontal text */
-  word-break: normal !important;
-  white-space: pre-line !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
   font-size: inherit;
   color: inherit;
   text-align: left;
