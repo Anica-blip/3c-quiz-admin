@@ -63,20 +63,20 @@ function renderApp() {
         <strong>Pages</strong>
         <ul>
           ${pages.map((p, i) => `
-            <li>
+            <li style="display:flex;align-items:center;gap:5px;">
               <button class="${i===selectedPageIdx?'active':''}" onclick="onSelectPage(${i})">
                 <img class="page-img-thumb" src="${p.bg || ''}" alt="">
                 <span class="img-filename">${(p.bg||'').replace('static/','')}</span>
               </button>
               <button onclick="onRemovePage(${i})" class="danger" style="font-size:0.95em;padding:2px 7px;">✕</button>
+              <button onclick="onMovePageUpSingle(${i})" ${i===0?'disabled':''} title="Move Up" style="padding:2px 5px;font-size:1em;">⬆️</button>
+              <button onclick="onMovePageDownSingle(${i})" ${i===pages.length-1?'disabled':''} title="Move Down" style="padding:2px 5px;font-size:1em;">⬇️</button>
             </li>
           `).join('')}
         </ul>
         <div class="page-actions">
           <button onclick="onAddPage()">+ Add Page</button>
           <button onclick="onDuplicatePage()">Duplicate Page</button>
-          <button onclick="onMovePageUp()" ${selectedPageIdx===0?'disabled':''}>&uarr;</button>
-          <button onclick="onMovePageDown()" ${selectedPageIdx===pages.length-1?'disabled':''}>&darr;</button>
         </div>
       </div>
       <div class="block-controls">
@@ -93,7 +93,7 @@ function renderApp() {
         <h1>3c-quiz-admin</h1>
         <button onclick="onNewQuizTab()">New Quiz</button>
         <div style="flex:1"></div>
-        <span><b>ID:</b> ${quiz.id}</span>
+        <span><b>Quiz ID:</b> <span style="background:#fe0;padding:2px 6px;border-radius:4px">${quiz.id}</span></span>
         <input type="text" value="${quiz.title}" style="margin-left:12px;width:180px;" onchange="onQuizTitleChange(this.value)">
       </div>
       <div style="margin-bottom:16px;">
@@ -140,6 +140,27 @@ function renderApp() {
 // Opens a fresh admin/editor in a new tab for a new quiz
 window.onNewQuizTab = function() {
   window.open(window.location.href, "_blank");
+};
+
+// Move page up by one (for page at index i)
+window.onMovePageUpSingle = function(idx) {
+  if (idx <= 0) return;
+  let quiz = quizzes[currentQuizIdx];
+  let pages = quiz.pages;
+  [pages[idx-1], pages[idx]] = [pages[idx], pages[idx-1]];
+  selectedPageIdx = idx-1;
+  saveQuizzes();
+  renderApp();
+};
+// Move page down by one (for page at index i)
+window.onMovePageDownSingle = function(idx) {
+  let quiz = quizzes[currentQuizIdx];
+  let pages = quiz.pages;
+  if (idx >= pages.length-1) return;
+  [pages[idx+1], pages[idx]] = [pages[idx], pages[idx+1]];
+  selectedPageIdx = idx+1;
+  saveQuizzes();
+  renderApp();
 };
 
 function renderCanvas(page) {
