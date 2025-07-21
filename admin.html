@@ -2,11 +2,165 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Quiz Admin/Editor</title>
-  <link rel="stylesheet" href="admin.css">
+  <title>3C Quiz Admin</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #32135e;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+    }
+    .container {
+      background: #41197f;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px #0006;
+      padding: 2em 2em 2em 2em;
+      margin-top: 2.5em;
+      max-width: 500px;
+      width: 95vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      font-size: 1.5em;
+      margin-bottom: 0.7em;
+      text-align: center;
+      font-weight: bold;
+    }
+    label {
+      font-size: 1em;
+      margin-top: 1em;
+      margin-bottom: 0.3em;
+      display: block;
+      color: #ddd;
+    }
+    input[type="text"], input[type="url"] {
+      width: 100%;
+      padding: 0.7em;
+      border-radius: 6px;
+      border: none;
+      font-size: 1em;
+      margin-bottom: 0.8em;
+      box-sizing: border-box;
+    }
+    .btn, .preview-btn {
+      background: #0072ff;
+      color: #fff;
+      font-size: 1em;
+      padding: 0.7em 2em;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      margin-top: 1.2em;
+      box-shadow: 0 2px 8px #0004;
+      transition: background 0.2s;
+      width: 100%;
+      max-width: 300px;
+      display: block;
+    }
+    .btn:active,
+    .btn:hover,
+    .preview-btn:active,
+    .preview-btn:hover { background: #005bb5; }
+    .error {
+      margin-top: 1em;
+      color: #ffb4b4;
+      font-size: 1em;
+      font-weight: bold;
+      text-align: center;
+    }
+    .quiz-preview {
+      margin-top: 2em;
+      width: 100%;
+      min-height: 350px;
+      border: 1px solid #666;
+      border-radius: 8px;
+      background: #250e44;
+      box-shadow: 0 4px 16px #0006;
+      display: none;
+    }
+    @media (max-width: 600px) {
+      .container {
+        padding: 1em;
+      }
+      .quiz-preview {
+        min-height: 220px;
+      }
+    }
+  </style>
 </head>
 <body>
-  <div id="app"></div>
-  <script src="admin.app.js"></script>
+  <div class="container">
+    <h1>3C Quiz Admin</h1>
+    <label for="quiz-url">Quiz JSON URL:</label>
+    <input type="url" id="quiz-url" placeholder="Paste your quiz JSON URL here" value="https://anica-blip.github.io/3c-quiz-admin/quiz-json/quiz.01.json">
+    <button class="btn" id="load-quiz-btn">Load Quiz</button>
+    <button class="preview-btn" id="preview-quizapp-btn">Preview in quiz.app</button>
+    <div class="error" id="error-msg"></div>
+    <pre id="quiz-json-view" style="width:100%;overflow-x:auto;background:#200b36;border-radius:8px;color:#fff;padding:1em;display:none;"></pre>
+    <div class="quiz-preview" id="quiz-app-preview">
+      <!-- Quiz app will be loaded here via iframe -->
+    </div>
+  </div>
+  <script>
+    const quizUrlInput = document.getElementById('quiz-url');
+    const loadBtn = document.getElementById('load-quiz-btn');
+    const previewBtn = document.getElementById('preview-quizapp-btn');
+    const errorMsg = document.getElementById('error-msg');
+    const quizJsonView = document.getElementById('quiz-json-view');
+    const quizAppPreview = document.getElementById('quiz-app-preview');
+
+    // Load and display raw quiz JSON
+    loadBtn.onclick = async function() {
+      const url = quizUrlInput.value.trim();
+      errorMsg.textContent = '';
+      quizJsonView.style.display = 'none';
+      quizAppPreview.style.display = 'none';
+      if (!url) {
+        errorMsg.textContent = 'Please enter the quiz JSON URL!';
+        return;
+      }
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Network error');
+        const data = await resp.json();
+        quizJsonView.textContent = JSON.stringify(data, null, 2);
+        quizJsonView.style.display = 'block';
+      } catch (e) {
+        errorMsg.textContent = 'Error loading quiz: NetworkError when attempting to fetch resource.';
+      }
+    };
+
+    // Preview in quiz.app using iframe
+    previewBtn.onclick = function() {
+      const url = quizUrlInput.value.trim();
+      errorMsg.textContent = '';
+      quizAppPreview.innerHTML = '';
+      quizJsonView.style.display = 'none';
+      if (!url) {
+        errorMsg.textContent = 'Please enter the quiz JSON URL!';
+        return;
+      }
+      // Replace this with the correct quiz.app URL and pass the quiz JSON URL as a query parameter
+      // Example: https://anica-blip.github.io/3c-quiz/?quizUrl=YOUR_JSON_URL
+      const quizAppUrl = 'https://anica-blip.github.io/3c-quiz/?quizUrl=' + encodeURIComponent(url);
+      const iframe = document.createElement('iframe');
+      iframe.src = quizAppUrl;
+      iframe.width = '100%';
+      iframe.height = '400px';
+      iframe.style.border = 'none';
+      iframe.style.borderRadius = '8px';
+      quizAppPreview.appendChild(iframe);
+      quizAppPreview.style.display = 'block';
+    };
+  </script>
 </body>
 </html>
