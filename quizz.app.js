@@ -2,7 +2,7 @@ const $ = (sel) => document.querySelector(sel);
 const app = $("#app");
 
 // Change this to the specific quiz JSON file you want to load:
-const QUIZ_FILE = "static/my-quiz.json";
+const QUIZ_FILE = "quiz-json/quiz.01.json";
 
 let quizData = null;
 let state = {
