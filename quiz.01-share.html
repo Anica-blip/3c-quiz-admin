@@ -12,22 +12,29 @@
   <meta name="twitter:title" content="Find Out What Drives Your Decisions?" />
   <meta name="twitter:description" content="Are your choices led by logic, emotion, instinct — or something deeper? This quick test reveals what quietly shapes your direction in life." />
   <meta name="twitter:image" content="https://anica-blip.github.io/3c-quiz-admin/1.png" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      background: #32135e; /* dark purple */
-      color: #fff;
+    html, body {
+      min-height: 100%;
       margin: 0;
-      min-height: 100vh;
+      padding: 0;
+      background: #32135e;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      box-sizing: border-box;
+    }
+    body {
       display: flex;
       flex-direction: column;
-      justify-content: center;
       align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding: 0 5vw;
     }
     .cover-img {
-      width: 300px;
-      max-width: 90vw;
+      width: 90vw;
+      max-width: 340px;
+      height: auto;
       border-radius: 16px;
       box-shadow: 0 4px 16px #0006;
       margin-top: 2em;
@@ -35,36 +42,58 @@
       display: block;
     }
     .title {
-      font-size: 2em;
+      font-size: 1.6em;
       font-weight: bold;
       margin-top: 0.3em;
-      margin-bottom: 0.5em;
+      margin-bottom: 0.7em;
       letter-spacing: 0.02em;
+      line-height: 1.2;
+      text-align: center;
     }
     .desc {
       color: #eee;
-      font-size: 1.1em;
-      margin-bottom: 2em;
+      font-size: 1em;
+      margin-bottom: 1.5em;
       margin-top: 0.5em;
-      max-width: 600px;
+      max-width: 500px;
+      line-height: 1.4;
+      text-align: center;
     }
     .btn {
       background: #0072ff;
       color: #fff;
-      font-size: 1.2em;
+      font-size: 1.15em;
       padding: 0.8em 2em;
       border-radius: 6px;
       border: none;
       cursor: pointer;
-      margin-top: 2em;
+      margin-top: 1.7em;
       box-shadow: 0 2px 8px #0004;
       transition: background 0.2s;
+      width: 94vw;
+      max-width: 320px;
+      display: block;
     }
-    .btn:hover { background: #005bb5;}
+    .btn:active,
+    .btn:hover { background: #005bb5; }
+    @media (min-width: 600px) {
+      .cover-img {
+        width: 340px;
+      }
+      .btn {
+        width: 320px;
+      }
+      .title {
+        font-size: 2em;
+      }
+      .desc {
+        font-size: 1.1em;
+      }
+    }
   </style>
 </head>
 <body>
-  <img src="https://anica-blip.github.io/3c-quiz-admin/1.png" class="cover-img" alt="Quiz cover"/>
+  <img src="https://anica-blip.github.io/3c-quiz-admin/1.png" class="cover-img" alt="">
   <div class="title">Find Out What Drives Your Decisions?</div>
   <div class="desc">
     Are your choices led by logic, emotion, instinct — or something deeper?<br>
