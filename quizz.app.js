@@ -1,32 +1,50 @@
 const $ = (sel) => document.querySelector(sel);
 const app = $("#app");
 
-const pageSequence = [
-  { type: "cover", bg: "static/1.png" },
-  { type: "intro", bg: "static/2.png" },
-  { type: "question", bg: "static/3a.png" },
-  { type: "question", bg: "static/3b.png" },
-  { type: "question", bg: "static/3c.png" },
-  { type: "question", bg: "static/3d.png" },
-  { type: "question", bg: "static/3e.png" },
-  { type: "question", bg: "static/3f.png" },
-  { type: "question", bg: "static/3g.png" },
-  { type: "question", bg: "static/3h.png" },
-  { type: "pre-results", bg: "static/4.png" },
-  { type: "resultA", bg: "static/5a.png" },
-  { type: "resultB", bg: "static/5b.png" },
-  { type: "resultC", bg: "static/5c.png" },
-  { type: "resultD", bg: "static/5d.png" },
-  { type: "thankyou", bg: "static/6.png" },
-];
+// Change this to the specific quiz JSON file you want to load:
+const QUIZ_FILE = "static/my-quiz.json";
 
-// Adjust these as needed
-let NUM_QUESTIONS = 8;
-let SHOW_RESULT = "A";
-
+let quizData = null;
 let state = {
   page: 0,
+  loaded: false,
+  answers: [],
 };
+
+async function loadQuiz(file) {
+  try {
+    const response = await fetch(file);
+    if (!response.ok) throw new Error("Quiz file not found");
+    quizData = await response.json();
+    state.page = 0;
+    state.loaded = true;
+    render();
+  } catch (err) {
+    app.innerHTML = `<div class="error">Error loading quiz: ${err.message}</div>`;
+  }
+}
+
+function getPageSequence() {
+  if (!quizData) return [];
+  let seq = [];
+  // Add cover if present
+  if (quizData.coverBg) seq.push({ type: "cover", bg: quizData.coverBg });
+  // Add intro if present
+  if (quizData.introBg) seq.push({ type: "intro", bg: quizData.introBg });
+  // Add questions
+  quizData.questions.forEach((q, idx) => {
+    seq.push({ type: "question", bg: q.bg, qIndex: idx });
+  });
+  // Add pre-results and results
+  if (quizData.preResultsBg) seq.push({ type: "pre-results", bg: quizData.preResultsBg });
+  ["A", "B", "C", "D"].forEach(type => {
+    if (quizData.results && quizData.results[type]) {
+      seq.push({ type: `result${type}`, bg: quizData.results[type].bg, resultType: type });
+    }
+  });
+  if (quizData.thankyouBg) seq.push({ type: "thankyou", bg: quizData.thankyouBg });
+  return seq;
+}
 
 function renderFullscreenBgPage({ bg, button, showBack }) {
   app.innerHTML = `
@@ -49,6 +67,12 @@ function renderFullscreenBgPage({ bg, button, showBack }) {
 
 function render() {
   app.innerHTML = "";
+  if (!state.loaded) {
+    app.innerHTML = `<div>Loading quiz...</div>`;
+    return;
+  }
+
+  const pageSequence = getPageSequence();
   const current = pageSequence[state.page];
   if (!current) {
     app.innerHTML = `<div class="fullscreen-bg" style="background-color:#111"></div>`;
@@ -58,30 +82,17 @@ function render() {
   let showBack = state.page > 0;
   let nextLabel = "Next";
   if (current.type === "cover") nextLabel = "Start";
+  if (current.type === "intro") nextLabel = "Continue";
   if (current.type === "pre-results") nextLabel = "Get Results";
-  if (
-    current.type === "resultA" ||
-    current.type === "resultB" ||
-    current.type === "resultC" ||
-    current.type === "resultD"
-  ) {
-    nextLabel = "Finish";
-  }
+  if (current.type.startsWith("result")) nextLabel = "Finish";
 
   let nextAction = () => {
     if (current.type === "pre-results") {
-      if (SHOW_RESULT === "A") state.page = pageSequence.findIndex(p => p.type === "resultA");
-      else if (SHOW_RESULT === "B") state.page = pageSequence.findIndex(p => p.type === "resultB");
-      else if (SHOW_RESULT === "C") state.page = pageSequence.findIndex(p => p.type === "resultC");
-      else if (SHOW_RESULT === "D") state.page = pageSequence.findIndex(p => p.type === "resultD");
+      const resultType = calculateResult();
+      state.page = pageSequence.findIndex(p => p.type === `result${resultType}`);
       render();
       return;
-    } else if (
-      current.type === "resultA" ||
-      current.type === "resultB" ||
-      current.type === "resultC" ||
-      current.type === "resultD"
-    ) {
+    } else if (current.type.startsWith("result")) {
       state.page = pageSequence.findIndex(p => p.type === "thankyou");
       render();
       return;
@@ -93,7 +104,7 @@ function render() {
     render();
   };
 
-  // --- COVER PAGE (card style, button inside image, NO QUIZ_CONFIG used) ---
+  // COVER PAGE
   if (current.type === "cover") {
     app.innerHTML = `
       <div class="cover-outer">
@@ -107,27 +118,97 @@ function render() {
     return;
   }
 
-  // --- INFO PAGE: full background, button at bottom, back button bottom left ---
+  // INTRO PAGE
   if (current.type === "intro") {
     renderFullscreenBgPage({
       bg: current.bg,
-      button: { label: "Continue", id: "mainBtn", onClick: () => {
-        state.page++;
-        render();
-      }},
-      showBack: true
+      button: { label: nextLabel, id: "mainBtn", onClick: nextAction },
+      showBack
     });
     return;
   }
 
-  // --- THANK YOU PAGE (NO BUTTON) ---
-  if (current.type === "thankyou") {
+  // QUESTION PAGE
+  if (current.type === "question") {
+    const q = quizData.questions[current.qIndex];
     app.innerHTML = `
-      <div class="fullscreen-bg" style="background-image:url('${current.bg}');"></div>
+      <div class="fullscreen-bg" style="background-image:url('${current.bg}')"></div>
       <div class="page-content">
         <div class="content-inner">
-          <h2>${current.type.toUpperCase()}</h2>
-          <p>Insert text/content here for: <strong>${current.type}</strong> (admin app will fill this)</p>
+          <h2>Question ${current.qIndex + 1}</h2>
+          <p>${q.text}</p>
+          <div class="answers">
+            ${q.answers.map((a, i) => `
+              <button class="answer-btn" id="answer${i}">${a.label}</button>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+      <div class="fullscreen-bottom">
+        ${showBack ? `<button class="back-arrow-btn" id="backBtn">&#8592;</button>` : ""}
+      </div>
+    `;
+    q.answers.forEach((a, i) => {
+      $(`#answer${i}`).onclick = () => {
+        state.answers[current.qIndex] = i;
+        state.page++;
+        render();
+      };
+    });
+    if (showBack) {
+      $("#backBtn").onclick = () => {
+        state.page = Math.max(state.page - 1, 0);
+        render();
+      };
+    }
+    return;
+  }
+
+  // PRE-RESULTS PAGE
+  if (current.type === "pre-results") {
+    renderFullscreenBgPage({
+      bg: current.bg,
+      button: { label: nextLabel, id: "mainBtn", onClick: nextAction },
+      showBack
+    });
+    return;
+  }
+
+  // RESULT PAGE
+  if (current.type.startsWith("result")) {
+    const resultType = current.resultType;
+    const result = quizData.results[resultType] || {};
+    app.innerHTML = `
+      <div class="fullscreen-bg" style="background-image:url('${result.bg || ""}')"></div>
+      <div class="page-content">
+        <div class="content-inner">
+          <h2>${result.title || "Result " + resultType}</h2>
+          <p>${result.description || ""}</p>
+        </div>
+      </div>
+      <div class="fullscreen-bottom">
+        <button class="main-btn" id="nextBtn">${nextLabel}</button>
+        ${showBack ? `<button class="back-arrow-btn" id="backBtn">&#8592;</button>` : ""}
+      </div>
+    `;
+    $("#nextBtn").onclick = nextAction;
+    if (showBack) {
+      $("#backBtn").onclick = () => {
+        state.page = getPageSequence().findIndex(p => p.type === "pre-results");
+        render();
+      };
+    }
+    return;
+  }
+
+  // THANK YOU PAGE
+  if (current.type === "thankyou") {
+    app.innerHTML = `
+      <div class="fullscreen-bg" style="background-image:url('${current.bg}')"></div>
+      <div class="page-content">
+        <div class="content-inner">
+          <h2>Thank You!</h2>
+          <p>${quizData.thankyouMessage || "You have completed the quiz."}</p>
         </div>
       </div>
       <div class="fullscreen-bottom">
@@ -136,47 +217,29 @@ function render() {
     `;
     if (showBack) {
       $("#backBtn").onclick = () => {
-        state.page = pageSequence.findIndex(p => p.type === "pre-results");
+        state.page = getPageSequence().findIndex(p => p.type === "pre-results");
         render();
       };
     }
     return;
   }
 
-  // --- ALL OTHER PAGES ---
-  app.innerHTML = `
-    <div class="fullscreen-bg" style="background-image:url('${current.bg}');"></div>
-    <div class="page-content">
-      <div class="content-inner">
-        <h2>${current.type.toUpperCase()}</h2>
-        <p>Insert text/content here for: <strong>${current.type}</strong> (admin app will fill this)</p>
-      </div>
-    </div>
-    <div class="fullscreen-bottom">
-      ${showBack ? `<button class="back-arrow-btn" id="backBtn" title="Go Back">&#8592;</button>` : ""}
-      <button class="main-btn" id="nextBtn">${nextLabel}</button>
-    </div>
-  `;
-
-  $("#nextBtn").onclick = nextAction;
-  if (showBack) {
-    $("#backBtn").onclick = () => {
-      if (
-        current.type === "thankyou" ||
-        current.type === "resultA" ||
-        current.type === "resultB" ||
-        current.type === "resultC" ||
-        current.type === "resultD"
-      ) {
-        state.page = pageSequence.findIndex(p => p.type === "pre-results");
-      } else if (current.type === "pre-results") {
-        state.page = pageSequence.findIndex((p, i) => p.type === "question" && i > 0 && i < pageSequence.length) + NUM_QUESTIONS - 1;
-      } else {
-        state.page = Math.max(state.page - 1, 0);
-      }
-      render();
-    };
-  }
+  // FALLBACK
+  app.innerHTML = `<div class="fullscreen-bg" style="background-color:#111"></div>`;
 }
 
-render();
+// Result calculation example: find most frequent answer type
+function calculateResult() {
+  const counts = {};
+  quizData.questions.forEach((q, idx) => {
+    const answerIdx = state.answers[idx];
+    const answer = q.answers[answerIdx];
+    if (answer && answer.type) {
+      counts[answer.type] = (counts[answer.type] || 0) + 1;
+    }
+  });
+  return Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "A");
+}
+
+// Load on page start
+loadQuiz(QUIZ_FILE);
