@@ -390,10 +390,8 @@ window.onSaveQuiz = async function() {
   let dbQuiz = {
     quiz_slug,
     quiz_url,
-    title: qz.title,
+    json: qz
   };
-
-  // Map each page to Supabase fields (YOUR LOGIC HERE, adjust as needed)
 
   if (!supabaseClient) {
     showFatalError("Supabase client not loaded yet, please reload and try again.");
