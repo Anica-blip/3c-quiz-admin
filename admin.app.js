@@ -4,23 +4,13 @@ const BLOCK_TYPES = [
   { type: "title", label: "Title", w: 275, h: 55, x: 42, y: 231, size: 18, align: "left", color: "#222222", maxlen: 200 },
   { type: "desc", label: "Description", w: 275, h: 256, x: 42, y: 294, size: 16, align: "left", color: "#444444", maxlen: 1000 },
   { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 }
-  // Answer buttons will be handled below!
 ];
 
-// Supabase config
 const SUPABASE_URL = 'https://cgxjqsbrditbteqhdyus.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNneGpxc2JyZGl0YnRlcWhkeXVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExMTY1ODEsImV4cCI6MjA2NjY5MjU4MX0.xUDy5ic-r52kmRtocdcW8Np9-lczjMZ6YKPXc03rIG4';
 const SUPABASE_TABLE = 'quizzes';
 
-// Initialize Supabase client
-let supabaseScript = document.createElement('script');
-supabaseScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js';
-document.head.appendChild(supabaseScript);
-
-let supabaseClient = null;
-supabaseScript.onload = () => {
-  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-};
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Generate next available quiz ID (reusing deleted numbers)
 function newQuizId() {
@@ -370,10 +360,8 @@ window.onSaveQuiz = async function() {
   let quiz_url = `https://anica-blip.github.io/3c-quiz/${quiz_slug}`;
 
   // Only text/blocks for app! NO backgrounds.
-  // Remove bg from page objects on upload
   let pagesForSave = qz.pages.map(p => ({
     blocks: (p.blocks||[]).map(b => {
-      // Only include relevant block fields
       let block = {
         type: b.type,
         label: b.label,
@@ -385,13 +373,11 @@ window.onSaveQuiz = async function() {
         align: b.align,
         maxlen: b.maxlen
       };
-      // Only include resultType if this is an answer
       if (b.type === "answer") block.resultType = b.resultType;
       return block;
     })
   }));
 
-  // Compose quiz object for Supabase
   let dbQuiz = {
     quiz_slug,
     quiz_url,
@@ -404,7 +390,6 @@ window.onSaveQuiz = async function() {
     return;
   }
 
-  // Upsert to Supabase
   let { error } = await supabaseClient
     .from(SUPABASE_TABLE)
     .upsert([dbQuiz], { onConflict: "quiz_slug" });
