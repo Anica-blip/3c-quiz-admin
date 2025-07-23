@@ -390,7 +390,7 @@ window.onSaveQuiz = async function() {
   let dbQuiz = {
     quiz_slug,
     quiz_url,
-    json: qz
+    pages: qz.pages // store all quiz pages/blocks here, as JSON
   };
 
   if (!supabaseClient) {
