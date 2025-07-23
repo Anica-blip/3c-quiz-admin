@@ -1,8 +1,14 @@
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co'; // <- change to your project URL
+const SUPABASE_KEY = 'YOUR_ANON_KEY'; // <- change to your anon/public key
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const $ = (sel) => document.querySelector(sel);
 const app = $("#app");
 
-// Change this to the specific quiz JSON file you want to load:
-const QUIZ_FILE = "quiz-json/quiz.01.json";
+// Change this to the specific quiz_slug you want to load from Supabase:
+const QUIZ_SLUG = "quiz.01";
 
 let quizData = null;
 let state = {
@@ -11,11 +17,51 @@ let state = {
   answers: [],
 };
 
-async function loadQuiz(file) {
+async function loadQuizFromSupabase(slug) {
   try {
-    const response = await fetch(file);
-    if (!response.ok) throw new Error("Quiz file not found");
-    quizData = await response.json();
+    const { data, error } = await supabase
+      .from('quizzes')
+      .select('*')
+      .eq('quiz_slug', slug)
+      .single();
+
+    if (error || !data) throw new Error("Quiz not found");
+
+    // Build questions array from 3a.png through 3h.png columns
+    const questionPages = [
+      "3a.png", "3b.png", "3c.png", "3d.png", "3e.png", "3f.png", "3g.png", "3h.png"
+    ];
+    const questions = [];
+    questionPages.forEach((col, idx) => {
+      if (data[col]) {
+        // Each column is a JSON string: {question, answers, correct, ...}
+        const qObj = JSON.parse(data[col]);
+        questions.push({
+          text: qObj.question,
+          answers: (qObj.answers || []).map((a, aIdx) => ({
+            label: typeof a === "string" ? a : (a.label || ""),
+            type: (qObj.answerTypes && qObj.answerTypes[aIdx]) || "A"
+          })),
+          bg: qObj.bg || null // optionally store background image URL, if you want per-question background
+        });
+      }
+    });
+
+    quizData = {
+      // If you have a cover, you can add coverBg: data["cover"] || null,
+      introBg: data["2.png"] || null,
+      questions,
+      preResultsBg: data["4.png"] || null,
+      results: {
+        A: data["5a.png"] ? JSON.parse(data["5a.png"]) : null,
+        B: data["5b.png"] ? JSON.parse(data["5b.png"]) : null,
+        C: data["5c.png"] ? JSON.parse(data["5c.png"]) : null,
+        D: data["5d.png"] ? JSON.parse(data["5d.png"]) : null,
+      },
+      thankyouBg: data["6.png"] || null,
+      thankyouMessage: data["thankyou_message"] || "You have completed the quiz.",
+    };
+
     state.page = 0;
     state.loaded = true;
     render();
@@ -27,8 +73,6 @@ async function loadQuiz(file) {
 function getPageSequence() {
   if (!quizData) return [];
   let seq = [];
-  // Add cover if present
-  if (quizData.coverBg) seq.push({ type: "cover", bg: quizData.coverBg });
   // Add intro if present
   if (quizData.introBg) seq.push({ type: "intro", bg: quizData.introBg });
   // Add questions
@@ -104,21 +148,7 @@ function render() {
     render();
   };
 
-  // COVER PAGE
-  if (current.type === "cover") {
-    app.innerHTML = `
-      <div class="cover-outer">
-        <div class="cover-image-container">
-          <img class="cover-img" src="${current.bg}" alt="cover"/>
-          <button class="main-btn cover-btn-in-img" id="nextBtn">${nextLabel}</button>
-        </div>
-      </div>
-    `;
-    $("#nextBtn").onclick = nextAction;
-    return;
-  }
-
-  // INTRO PAGE
+  // INTRO PAGE (was cover or intro)
   if (current.type === "intro") {
     renderFullscreenBgPage({
       bg: current.bg,
@@ -132,7 +162,7 @@ function render() {
   if (current.type === "question") {
     const q = quizData.questions[current.qIndex];
     app.innerHTML = `
-      <div class="fullscreen-bg" style="background-image:url('${current.bg}')"></div>
+      <div class="fullscreen-bg" style="background-image:url('${current.bg || ""}')"></div>
       <div class="page-content">
         <div class="content-inner">
           <h2>Question ${current.qIndex + 1}</h2>
@@ -241,5 +271,5 @@ function calculateResult() {
   return Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b, "A");
 }
 
-// Load on page start
-loadQuiz(QUIZ_FILE);
+// Load quiz from Supabase on page start
+loadQuizFromSupabase(QUIZ_SLUG);
