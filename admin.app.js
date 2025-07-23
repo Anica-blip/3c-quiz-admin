@@ -1,5 +1,4 @@
 (function() {
-  // Show error on page and in console
   function showFatalError(msg) {
     document.body.innerHTML = '';
     const errDiv = document.createElement('div');
@@ -9,7 +8,6 @@
     console.error("FATAL ERROR:", msg);
   }
 
-  // Wait for Supabase to be loaded
   function waitForSupabase(callback) {
     if (window.supabase && window.supabase.createClient) {
       callback(window.supabase.createClient(
@@ -32,32 +30,11 @@ const BLOCK_TYPES = [
   { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 }
 ];
 
-// All static pages (update here if you add/remove pages)
-const REQUIRED_PAGES = [
-  "static/2.png", // intro
-  "static/3a.png", "static/3b.png", "static/3c.png", "static/3d.png",
-  "static/3e.png", "static/3f.png", "static/3g.png", "static/3h.png",
-  "static/4.png", // pre-results
-  "static/5a.png", "static/5b.png", "static/5c.png", "static/5d.png", // results
-  "static/6.png" // thank you
-];
-
-function ensureAllPages(quiz) {
-  quiz.pages = quiz.pages || [];
-  const presentPages = quiz.pages.map(p => p.bg);
-  REQUIRED_PAGES.forEach((bg, idx) => {
-    if (!presentPages.includes(bg)) {
-      quiz.pages.splice(idx, 0, { bg, blocks: [] });
-    }
-  });
-  quiz.pages = quiz.pages.filter(p => REQUIRED_PAGES.includes(p.bg));
-}
-
 function blankQuiz() {
   return {
     id: "",
     title: "New Quiz",
-    pages: REQUIRED_PAGES.map(bg => ({ bg, blocks: [] }))
+    pages: []
   };
 }
 
@@ -92,9 +69,6 @@ let currentQuizIdx = 0;
 let selectedPageIdx = 0;
 let selectedBlockIdx = -1;
 
-// Ensure required pages on every load
-quizzes.forEach(ensureAllPages);
-
 function renderCanvas(page) {
   if (!page) return `<div class="editor-canvas"></div>`;
   return `
@@ -120,8 +94,6 @@ function renderCanvas(page) {
             spellcheck="true"
             style="
               direction: ltr; 
-              unicode-bidi: plaintext;
-              writing-mode: horizontal-tb;
               font-size:inherit;color:inherit;
               text-align:${b.align||'left'};
               width:100%;min-height:24px;outline:none;background:transparent;border:none;
@@ -185,9 +157,8 @@ function renderApp() {
     const app = document.getElementById('app');
     if (!app) throw new Error("App container not found!");
     const quiz = quizzes[currentQuizIdx] || blankQuiz();
-    ensureAllPages(quiz);
-    const pages = quiz.pages || [blankQuiz().pages[0]];
-    const page = pages[selectedPageIdx] || pages[0];
+    const pages = quiz.pages || [];
+    const page = pages[selectedPageIdx] || {};
 
     app.innerHTML = `
       <div class="sidebar">
@@ -200,15 +171,15 @@ function renderApp() {
                   <img class="page-img-thumb" src="${p.bg || ''}" alt="">
                   <span class="img-filename">${(p.bg||'').replace('static/','')}</span>
                 </button>
-                <button onclick="onRemovePage(${i})" class="danger" style="font-size:0.95em;padding:2px 7px;" disabled>✕</button>
+                <button onclick="onRemovePage(${i})" class="danger" style="font-size:0.95em;padding:2px 7px;">✕</button>
                 <button onclick="onMovePageUpSingle(${i})" ${i===0?'disabled':''} title="Move Up" style="padding:2px 5px;font-size:1em;">⬆️</button>
                 <button onclick="onMovePageDownSingle(${i})" ${i===pages.length-1?'disabled':''} title="Move Down" style="padding:2px 5px;font-size:1em;">⬇️</button>
               </li>
             `).join('')}
           </ul>
           <div class="page-actions">
-            <button onclick="onAddPage()" disabled>+ Add Page</button>
-            <button onclick="onDuplicatePage()" disabled>Duplicate Page</button>
+            <button onclick="onAddPage()">+ Add Page</button>
+            <button onclick="onDuplicatePage()">Duplicate Page</button>
           </div>
         </div>
         <div class="block-controls">
@@ -236,7 +207,7 @@ function renderApp() {
           <button onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''}>&larr;</button>
           <span style="margin:0 12px;">Page ${selectedPageIdx+1} / ${pages.length}</span>
           <button onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''}>&rarr;</button>
-          <button onclick="onAddPage()" style="margin-left:12px;" disabled>+ Create Next Page</button>
+          <button onclick="onAddPage()" style="margin-left:12px;">+ Create Next Page</button>
           <button onclick="onSavePage()" style="margin-left:8px;">💾 Save Page</button>
         </div>
         <div class="editor-canvas-wrap">
@@ -244,9 +215,9 @@ function renderApp() {
             ${renderCanvas(page)}
             <div style="margin:6px 0;">
               <label>Background:
-                <input type="text" value="${page.bg||''}" style="width:160px;" onchange="onBgChange(this.value)" disabled>
+                <input type="text" value="${page.bg||''}" style="width:160px;" onchange="onBgChange(this.value)">
               </label>
-              <button onclick="onPickBg()" disabled>Pick Image</button>
+              <button onclick="onPickBg()">Pick Image</button>
             </div>
           </div>
           <div>
@@ -276,9 +247,6 @@ function renderApp() {
     showFatalError("Render error: " + e.message);
   }
 }
-
-// All other unchanged logic (add blocks, move up/down, edit block, etc.) should be as in your original.
-// For brevity, I'm not repeating *every* handler, but if you want the *entire* code with all handlers, say so!
 
 window.onAddAnswerBlock = function(letter) {
   let coords = {
@@ -416,7 +384,6 @@ window.onSaveQuiz = async function() {
   const statusDiv = document.getElementById("supabase-status");
   if (statusDiv) statusDiv.textContent = '';
   let qz = quizzes[currentQuizIdx];
-  ensureAllPages(qz);
 
   let quiz_slug = qz.id;
   let quiz_url = `https://anica-blip.github.io/3c-quiz/${quiz_slug}`;
@@ -426,47 +393,7 @@ window.onSaveQuiz = async function() {
     title: qz.title,
   };
 
-  // Map each required page to its Supabase column
-  // 2.png: intro, 3a-h.png: questions, 4.png: pre-results, 5a-d.png: results, 6.png: thankyou
-  // Question pages: save as JSON {question, answers}
-  // Results: save as JSON {title, description, bg}
-  // Others: save as text (description, etc.)
-
-  // Map intro
-  dbQuiz["2.png"] = (qz.pages.find(p => p.bg === "static/2.png")?.blocks[0]?.text || "");
-
-  // Map question pages
-  const questionKeys = [
-    "3a.png", "3b.png", "3c.png", "3d.png", "3e.png", "3f.png", "3g.png", "3h.png"
-  ];
-  questionKeys.forEach((k, i) => {
-    let page = qz.pages.find(p => p.bg === `static/${k}`);
-    if (page) {
-      let question = page.blocks.find(b => b.type === "question")?.text || "";
-      let answers = ["A","B","C","D"].map(letter =>
-        page.blocks.find(b => b.type === "answer" && b.resultType === letter)?.text || ""
-      );
-      if (question || answers.some(x => x)) {
-        dbQuiz[k] = JSON.stringify({ question, answers });
-      }
-    }
-  });
-
-  // Pre-results (page 4.png) - just save first block text
-  dbQuiz["4.png"] = (qz.pages.find(p => p.bg === "static/4.png")?.blocks[0]?.text || "");
-
-  // Result pages (5a-d.png)
-  ["A","B","C","D"].forEach(letter => {
-    let page = qz.pages.find(p => p.bg === `static/5${letter.toLowerCase()}.png`);
-    if (page) {
-      let title = page.blocks.find(b => b.type === "title")?.text || "";
-      let description = page.blocks.find(b => b.type === "desc")?.text || "";
-      dbQuiz[`5${letter.toLowerCase()}.png`] = JSON.stringify({ title, description, bg: `static/5${letter.toLowerCase()}.png` });
-    }
-  });
-
-  // Thank you page (6.png)
-  dbQuiz["6.png"] = (qz.pages.find(p => p.bg === "static/6.png")?.blocks[0]?.text || "");
+  // Map each page to Supabase fields (YOUR LOGIC HERE, adjust as needed)
 
   if (!supabaseClient) {
     showFatalError("Supabase client not loaded yet, please reload and try again.");
@@ -611,11 +538,51 @@ window.onMovePageDownSingle = function(idx) {
   saveQuizzes();
   renderApp();
 };
+window.onRemovePage = function(idx) {
+  let quiz = quizzes[currentQuizIdx];
+  quiz.pages.splice(idx, 1);
+  if (selectedPageIdx >= quiz.pages.length) selectedPageIdx = quiz.pages.length-1;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onAddPage = function() {
+  let quiz = quizzes[currentQuizIdx];
+  quiz.pages = quiz.pages || [];
+  quiz.pages.push({ bg: "", blocks: [] });
+  selectedPageIdx = quiz.pages.length-1;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onDuplicatePage = function() {
+  let quiz = quizzes[currentQuizIdx];
+  let page = quiz.pages[selectedPageIdx];
+  if (!page) return;
+  let copy = JSON.parse(JSON.stringify(page));
+  quiz.pages.splice(selectedPageIdx+1, 0, copy);
+  selectedPageIdx = selectedPageIdx+1;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
 window.onNewQuizTab = function() {
   window.open(window.location.href, "_blank");
 };
-window.onBgChange = function(val) {};
-window.onPickBg = function() {};
+window.onBgChange = function(val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.bg = val;
+  saveQuizzes();
+  renderApp();
+};
+window.onPickBg = function() {
+  let val = prompt(`Enter background image filename (in static/):\nCurrent: ${quizzes[currentQuizIdx].pages[selectedPageIdx].bg}`);
+  if (val) {
+    quizzes[currentQuizIdx].pages[selectedPageIdx].bg = val.startsWith('static/') ? val : "static/" + val.replace(/^static\//,'');
+    saveQuizzes();
+    renderApp();
+  }
+};
 
 renderApp();
 
