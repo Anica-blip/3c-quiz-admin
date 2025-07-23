@@ -1,4 +1,5 @@
 (function() {
+  // Show error on page and in console
   function showFatalError(msg) {
     document.body.innerHTML = '';
     const errDiv = document.createElement('div');
@@ -8,6 +9,7 @@
     console.error("FATAL ERROR:", msg);
   }
 
+  // Wait for Supabase to be loaded
   function waitForSupabase(callback) {
     if (window.supabase && window.supabase.createClient) {
       callback(window.supabase.createClient(
@@ -30,7 +32,7 @@ const BLOCK_TYPES = [
   { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 }
 ];
 
-// The full list of required static pages (update here if you add/remove pages)
+// All static pages (update here if you add/remove pages)
 const REQUIRED_PAGES = [
   "static/2.png", // intro
   "static/3a.png", "static/3b.png", "static/3c.png", "static/3d.png",
@@ -40,30 +42,24 @@ const REQUIRED_PAGES = [
   "static/6.png" // thank you
 ];
 
-// Helper to ensure all required pages exist in the quiz (in correct order)
 function ensureAllPages(quiz) {
   quiz.pages = quiz.pages || [];
   const presentPages = quiz.pages.map(p => p.bg);
   REQUIRED_PAGES.forEach((bg, idx) => {
     if (!presentPages.includes(bg)) {
-      // Insert missing page in order
       quiz.pages.splice(idx, 0, { bg, blocks: [] });
     }
   });
-  // Remove any extra pages not in REQUIRED_PAGES
   quiz.pages = quiz.pages.filter(p => REQUIRED_PAGES.includes(p.bg));
 }
 
 function blankQuiz() {
-  const q = {
+  return {
     id: "",
     title: "New Quiz",
     pages: REQUIRED_PAGES.map(bg => ({ bg, blocks: [] }))
   };
-  return q;
 }
-
-// ... rest of your unchanged code for UI, adding/removing blocks, etc. ...
 
 function loadQuizzes() {
   let q = localStorage.getItem('3c-quiz-admin-quizzes-v3');
@@ -98,6 +94,91 @@ let selectedBlockIdx = -1;
 
 // Ensure required pages on every load
 quizzes.forEach(ensureAllPages);
+
+function renderCanvas(page) {
+  if (!page) return `<div class="editor-canvas"></div>`;
+  return `
+    <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;position:relative;">
+      <img class="bg" src="${page.bg||''}" alt="bg">
+      ${(page.blocks||[]).map((b,bi) => `
+        <div class="text-block${bi===selectedBlockIdx?' selected':''}"
+          style="
+            left:${b.x}px;top:${b.y}px;
+            width:${b.w}px;
+            height:${b.h}px;
+            font-size:${b.size}px;
+            color:${b.color};
+            text-align:${b.align||'left'};
+            "
+          data-idx="${bi}"
+          tabindex="0"
+          onclick="onSelectBlock(${bi});"
+          >
+          <span class="block-label">${b.label||b.type}</span>
+          <div class="block-content" contenteditable="true"
+            oninput="onBlockTextInput(${bi},this)"
+            spellcheck="true"
+            style="
+              direction: ltr; 
+              unicode-bidi: plaintext;
+              writing-mode: horizontal-tb;
+              font-size:inherit;color:inherit;
+              text-align:${b.align||'left'};
+              width:100%;min-height:24px;outline:none;background:transparent;border:none;
+              overflow-wrap:break-word;white-space:pre-wrap;resize:none;display:block;vertical-align:top;padding:0;margin:0;max-height:none;overflow-y:auto;"
+            >${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}</div>
+          <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderBlockSettings(page) {
+  let b = (page.blocks||[])[selectedBlockIdx];
+  if (!b) return `<div style="margin-top:20px;">Select a block to edit its settings here.</div>`;
+  return `
+    <div style="margin-bottom:8px;">
+      <button onclick="onSelectBlock(${selectedBlockIdx})" style="font-weight:bold;">${b.label||b.type}</button>
+    </div>
+    <div class="block-settings">
+      <div style="font-size:1em;">
+        <b>W</b>: ${b.w} &times; <b>H</b>: ${b.h}<br>
+        <b>X</b>: ${b.x} &times; <b>Y</b>: ${b.y}
+      </div>
+      <label>Font Size: 
+        <input type="number" min="10" max="64" value="${b.size}" style="width:48px;"
+          onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
+      </label>
+      <label>Color: 
+        <input type="color" value="${b.color}"
+          onchange="onBlockColor(${selectedBlockIdx},this.value)">
+      </label>
+      <label>Width: 
+        <input type="number" min="80" max="${CANVAS_W-16}" value="${b.w}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
+      </label>
+      <label>Height: 
+        <input type="number" min="24" max="${CANVAS_H}" value="${b.h}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
+      </label>
+      <label>X: 
+        <input type="number" min="0" max="${CANVAS_W-20}" value="${b.x}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
+      </label>
+      <label>Y: 
+        <input type="number" min="0" max="${CANVAS_H-20}" value="${b.y}" style="width:48px;"
+          onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
+      </label>
+      <label>Align:
+        <select onchange="onBlockAlign(${selectedBlockIdx},this.value)">
+          <option value="left" ${b.align==="left"?"selected":""}>Left</option>
+          <option value="center" ${b.align==="center"?"selected":""}>Center</option>
+        </select>
+      </label>
+    </div>
+  `;
+}
 
 function renderApp() {
   try {
@@ -196,7 +277,140 @@ function renderApp() {
   }
 }
 
-// All your unchanged block/page handlers here...
+// All other unchanged logic (add blocks, move up/down, edit block, etc.) should be as in your original.
+// For brevity, I'm not repeating *every* handler, but if you want the *entire* code with all handlers, say so!
+
+window.onAddAnswerBlock = function(letter) {
+  let coords = {
+    "A": { x: 31, y: 216 },
+    "B": { x: 31, y: 286 },
+    "C": { x: 31, y: 356 },
+    "D": { x: 31, y: 426 }
+  };
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks = page.blocks || [];
+  page.blocks.push({
+    type: "answer",
+    label: `Answer ${letter}`,
+    resultType: letter,
+    text: "",
+    x: coords[letter].x, y: coords[letter].y,
+    w: 294, h: 55,
+    size: 16,
+    color: "#003366",
+    align: "left",
+    maxlen: 200
+  });
+  selectedBlockIdx = page.blocks.length-1;
+  saveQuizzes();
+  renderApp();
+};
+window.onRemoveBlockSidebar = function() {
+  if (selectedBlockIdx < 0) return;
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks.splice(selectedBlockIdx,1);
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onAddBlock = function(type) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let tpl = BLOCK_TYPES.find(b => b.type===type);
+  if (!tpl) return;
+  page.blocks = page.blocks||[];
+  page.blocks.push({
+    type: tpl.type,
+    label: tpl.label,
+    text: "",
+    x: tpl.x, y: tpl.y,
+    w: tpl.w, h: tpl.h,
+    size: tpl.size,
+    color: tpl.color,
+    align: tpl.align,
+    maxlen: tpl.maxlen
+  });
+  selectedBlockIdx = page.blocks.length-1;
+  saveQuizzes();
+  renderApp();
+};
+window.onRemoveAllBlocks = function() {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks = [];
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onSelectBlock = function(idx) {
+  selectedBlockIdx = idx;
+  renderApp();
+};
+window.onBlockAlign = function(idx, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let b = page.blocks[idx];
+  b.align = val;
+  saveQuizzes();
+  renderApp();
+};
+window.onBlockTextInput = function(bi, el) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let b = page.blocks[bi];
+  let text = el.innerText.replace(/\u200B/g, '');
+  if (b.maxlen) text = text.slice(0, b.maxlen);
+  b.text = text;
+  setTimeout(()=>{
+    let canvas = document.getElementById("editor-canvas");
+    if (!canvas) return;
+    let blockEls = canvas.querySelectorAll('.text-block');
+    let contentEl = blockEls[bi]?.querySelector('.block-content');
+    if (contentEl) {
+      contentEl.style.height = "auto";
+      let box = contentEl.getBoundingClientRect();
+      let h = Math.max(b.h, box.height + 8);
+      b.h = Math.min(h, CANVAS_H - b.y);
+      saveQuizzes();
+      renderApp();
+    }
+  }, 10);
+  saveQuizzes();
+};
+window.onBlockFontSize = function(bi, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi].size = parseInt(val)||18;
+  saveQuizzes();
+  renderApp();
+};
+window.onBlockColor = function(bi, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi].color = val;
+  saveQuizzes();
+  renderApp();
+};
+window.onBlockPos = function(bi, prop, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi][prop] = parseInt(val)||0;
+  saveQuizzes();
+  renderApp();
+};
+
+window.onQuizTitleChange = function(val) {
+  quizzes[currentQuizIdx].title = val;
+  saveQuizzes();
+};
+window.onPrevPage = function() {
+  if (selectedPageIdx > 0) {
+    selectedPageIdx--; selectedBlockIdx = -1; renderApp();
+  }
+}
+window.onNextPage = function() {
+  let quiz = quizzes[currentQuizIdx];
+  if (selectedPageIdx < quiz.pages.length-1) {
+    selectedPageIdx++; selectedBlockIdx = -1; renderApp();
+  }
+}
+window.onSavePage = function() {
+  saveQuizzes();
+  alert("Page saved!");
+}
 
 window.onSaveQuiz = async function() {
   const statusDiv = document.getElementById("supabase-status");
@@ -214,7 +428,7 @@ window.onSaveQuiz = async function() {
 
   // Map each required page to its Supabase column
   // 2.png: intro, 3a-h.png: questions, 4.png: pre-results, 5a-d.png: results, 6.png: thankyou
-  // Question pages: save as JSON {question, answers, correct}
+  // Question pages: save as JSON {question, answers}
   // Results: save as JSON {title, description, bg}
   // Others: save as text (description, etc.)
 
@@ -232,7 +446,6 @@ window.onSaveQuiz = async function() {
       let answers = ["A","B","C","D"].map(letter =>
         page.blocks.find(b => b.type === "answer" && b.resultType === letter)?.text || ""
       );
-      // Optionally, you can save correct answer index or type if you want (here left off)
       if (question || answers.some(x => x)) {
         dbQuiz[k] = JSON.stringify({ question, answers });
       }
@@ -279,7 +492,130 @@ window.onSaveQuiz = async function() {
   }
 };
 
-// ...rest of your unchanged logic for rendering canvas, block settings, handlers, etc...
+window.onExportQuiz = function() {
+  let qz = quizzes[currentQuizIdx];
+  let data = JSON.stringify(qz, null, 2);
+  let blob = new Blob([data], {type: "application/json"});
+  let url = URL.createObjectURL(blob);
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = `${qz.id}.json`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+};
+window.onImportQuiz = function() {
+  let inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = ".json,application/json";
+  inp.onchange = e => {
+    let file = inp.files[0];
+    let reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        let data = JSON.parse(ev.target.result);
+        if (data && data.id && data.pages) {
+          quizzes.push(data);
+          currentQuizIdx = quizzes.length-1;
+          selectedPageIdx = 0;
+          selectedBlockIdx = -1;
+          saveQuizzes();
+          renderApp();
+        } else {
+          alert("Invalid quiz file.");
+        }
+      } catch {
+        alert("Import failed.");
+      }
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+};
+
+function attachCanvasEvents() {
+  const canvas = document.getElementById('editor-canvas');
+  if (!canvas) return;
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
+  canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
+    blockEl.onmousedown = e => {
+      if (e.target.classList.contains('block-label') ||
+          e.target.classList.contains('block-content') ||
+          e.target.classList.contains('resize-handle')) return;
+      dragIdx = bi;
+      resizing = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      startBlock = {...page.blocks[bi]};
+      selectedBlockIdx = bi;
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    };
+    let resizeHandle = blockEl.querySelector('.resize-handle');
+    if (resizeHandle) {
+      resizeHandle.onmousedown = e => {
+        dragIdx = bi;
+        resizing = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startBlock = {...page.blocks[bi]};
+        document.body.style.userSelect = "none";
+        e.stopPropagation();
+        e.preventDefault();
+      };
+    }
+  });
+  window.onmousemove = e => {
+    if (dragIdx===-1) return;
+    let block = page.blocks[dragIdx];
+    if (!block) return;
+    if (resizing) {
+      let dw = e.clientX-startX, dh = e.clientY-startY;
+      block.w = Math.max(80, Math.min(CANVAS_W-16, startBlock.w+dw));
+      block.h = Math.max(24, startBlock.h+dh);
+    } else {
+      let dx = e.clientX-startX, dy = e.clientY-startY;
+      block.x = Math.max(0, Math.min(CANVAS_W-block.w, startBlock.x+dx));
+      block.y = Math.max(0, Math.min(CANVAS_H-block.h, startBlock.y+dy));
+    }
+    saveQuizzes();
+    renderApp();
+  };
+  window.onmouseup = e => {
+    dragIdx = -1;
+    resizing = false;
+    document.body.style.userSelect = "";
+  };
+}
+
+window.onSelectPage = function(idx) {
+  selectedPageIdx = idx;
+  selectedBlockIdx = -1;
+  renderApp();
+};
+window.onMovePageUpSingle = function(idx) {
+  if (idx <= 0) return;
+  let quiz = quizzes[currentQuizIdx];
+  let pages = quiz.pages;
+  [pages[idx-1], pages[idx]] = [pages[idx], pages[idx-1]];
+  selectedPageIdx = idx-1;
+  saveQuizzes();
+  renderApp();
+};
+window.onMovePageDownSingle = function(idx) {
+  let quiz = quizzes[currentQuizIdx];
+  let pages = quiz.pages;
+  if (idx >= pages.length-1) return;
+  [pages[idx+1], pages[idx]] = [pages[idx], pages[idx+1]];
+  selectedPageIdx = idx+1;
+  saveQuizzes();
+  renderApp();
+};
+window.onNewQuizTab = function() {
+  window.open(window.location.href, "_blank");
+};
+window.onBgChange = function(val) {};
+window.onPickBg = function() {};
 
 renderApp();
 
