@@ -3,9 +3,24 @@ const CANVAS_W = 360, CANVAS_H = 640;
 const BLOCK_TYPES = [
   { type: "title", label: "Title", w: 275, h: 55, x: 42, y: 231, size: 18, align: "left", color: "#222222", maxlen: 200 },
   { type: "desc", label: "Description", w: 275, h: 256, x: 42, y: 294, size: 16, align: "left", color: "#444444", maxlen: 1000 },
-  { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 },
-  { type: "answer", label: "Answer", w: 294, h: 55, x: 31, y: 216, size: 16, align: "left", color: "#003366", maxlen: 200 }
+  { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 }
+  // Answer buttons will be handled below!
 ];
+
+// Supabase config
+const SUPABASE_URL = 'https://cgxjqsbrditbteqhdyus.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNneGpxc2JyZGl0YnRlcWhkeXVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExMTY1ODEsImV4cCI6MjA2NjY5MjU4MX0.xUDy5ic-r52kmRtocdcW8Np9-lczjMZ6YKPXc03rIG4';
+const SUPABASE_TABLE = 'quizzes';
+
+// Initialize Supabase client
+let supabaseScript = document.createElement('script');
+supabaseScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js';
+document.head.appendChild(supabaseScript);
+
+let supabaseClient = null;
+supabaseScript.onload = () => {
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+};
 
 // Generate next available quiz ID (reusing deleted numbers)
 function newQuizId() {
@@ -81,9 +96,13 @@ function renderApp() {
       </div>
       <div class="block-controls">
         <strong>Add Block</strong>
-        ${BLOCK_TYPES.map(b => `
-          <button onclick="onAddBlock('${b.type}')">${b.label}</button>
-        `).join('')}
+        <button onclick="onAddBlock('title')">Title</button>
+        <button onclick="onAddBlock('desc')">Description</button>
+        <button onclick="onAddBlock('question')">Question</button>
+        <button onclick="onAddAnswerBlock('A')">Answer A</button>
+        <button onclick="onAddAnswerBlock('B')">Answer B</button>
+        <button onclick="onAddAnswerBlock('C')">Answer C</button>
+        <button onclick="onAddAnswerBlock('D')">Answer D</button>
         <button onclick="onRemoveAllBlocks()" class="danger" style="margin-top:4px;">Remove All</button>
         <button onclick="onRemoveBlockSidebar()" class="danger" style="margin-top:8px;" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
       </div>
@@ -119,6 +138,7 @@ function renderApp() {
             <button onclick="onSaveQuiz()">💾 Save Quiz</button>
             <button onclick="onExportQuiz()">⬇ Export JSON</button>
             <button onclick="onImportQuiz()">⬆ Import JSON</button>
+            <div id="supabase-status" style="margin-top:10px;font-size:0.98em;color:#0a0"></div>
           </div>
         </div>
       </div>
@@ -137,118 +157,35 @@ function renderApp() {
   }, 100);
 }
 
-// Opens a fresh admin/editor in a new tab for a new quiz
-window.onNewQuizTab = function() {
-  window.open(window.location.href, "_blank");
-};
-
-// Move page up by one (for page at index i)
-window.onMovePageUpSingle = function(idx) {
-  if (idx <= 0) return;
-  let quiz = quizzes[currentQuizIdx];
-  let pages = quiz.pages;
-  [pages[idx-1], pages[idx]] = [pages[idx], pages[idx-1]];
-  selectedPageIdx = idx-1;
+// "Answer A"-"Answer D" block adders
+window.onAddAnswerBlock = function(letter) {
+  // You can update these coords later!
+  let coords = {
+    "A": { x: 31, y: 216 },
+    "B": { x: 31, y: 286 },
+    "C": { x: 31, y: 356 },
+    "D": { x: 31, y: 426 }
+  };
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks = page.blocks || [];
+  page.blocks.push({
+    type: "answer",
+    label: `Answer ${letter}`,
+    resultType: letter,
+    text: "",
+    x: coords[letter].x, y: coords[letter].y,
+    w: 294, h: 55,
+    size: 16,
+    color: "#003366",
+    align: "left",
+    maxlen: 200
+  });
+  selectedBlockIdx = page.blocks.length-1;
   saveQuizzes();
   renderApp();
 };
-// Move page down by one (for page at index i)
-window.onMovePageDownSingle = function(idx) {
-  let quiz = quizzes[currentQuizIdx];
-  let pages = quiz.pages;
-  if (idx >= pages.length-1) return;
-  [pages[idx+1], pages[idx]] = [pages[idx], pages[idx+1]];
-  selectedPageIdx = idx+1;
-  saveQuizzes();
-  renderApp();
-};
 
-function renderCanvas(page) {
-  if (!page) return `<div class="editor-canvas"></div>`;
-  return `
-    <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;position:relative;">
-      <img class="bg" src="${page.bg||''}" alt="bg">
-      ${(page.blocks||[]).map((b,bi) => `
-        <div class="text-block${bi===selectedBlockIdx?' selected':''}"
-          style="
-            left:${b.x}px;top:${b.y}px;
-            width:${b.w}px;
-            height:${b.h}px;
-            font-size:${b.size}px;
-            color:${b.color};
-            text-align:${b.align||'left'};
-            "
-          data-idx="${bi}"
-          tabindex="0"
-          onclick="onSelectBlock(${bi});"
-          >
-          <span class="block-label">${b.label||b.type}</span>
-          <div class="block-content" contenteditable="true"
-            oninput="onBlockTextInput(${bi},this)"
-            spellcheck="true"
-            style="
-              direction: ltr; 
-              unicode-bidi: plaintext;
-              writing-mode: horizontal-tb;
-              font-size:inherit;color:inherit;
-              text-align:${b.align||'left'};
-              width:100%;min-height:24px;outline:none;background:transparent;border:none;
-              overflow-wrap:break-word;white-space:pre-wrap;resize:none;display:block;vertical-align:top;padding:0;margin:0;max-height:none;overflow-y:auto;"
-            >${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}</div>
-          <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
-function renderBlockSettings(page) {
-  let b = (page.blocks||[])[selectedBlockIdx];
-  if (!b) return `<div style="margin-top:20px;">Select a block to edit its settings here.</div>`;
-  return `
-    <div style="margin-bottom:8px;">
-      <button onclick="onSelectBlock(${selectedBlockIdx})" style="font-weight:bold;">${b.label||b.type}</button>
-    </div>
-    <div class="block-settings">
-      <div style="font-size:1em;">
-        <b>W</b>: ${b.w} &times; <b>H</b>: ${b.h}<br>
-        <b>X</b>: ${b.x} &times; <b>Y</b>: ${b.y}
-      </div>
-      <label>Font Size: 
-        <input type="number" min="10" max="64" value="${b.size}" style="width:48px;"
-          onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
-      </label>
-      <label>Color: 
-        <input type="color" value="${b.color}"
-          onchange="onBlockColor(${selectedBlockIdx},this.value)">
-      </label>
-      <label>Width: 
-        <input type="number" min="80" max="${CANVAS_W-16}" value="${b.w}" style="width:48px;"
-          onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
-      </label>
-      <label>Height: 
-        <input type="number" min="24" max="${CANVAS_H}" value="${b.h}" style="width:48px;"
-          onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
-      </label>
-      <label>X: 
-        <input type="number" min="0" max="${CANVAS_W-20}" value="${b.x}" style="width:48px;"
-          onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
-      </label>
-      <label>Y: 
-        <input type="number" min="0" max="${CANVAS_H-20}" value="${b.y}" style="width:48px;"
-          onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
-      </label>
-      <label>Align:
-        <select onchange="onBlockAlign(${selectedBlockIdx},this.value)">
-          <option value="left" ${b.align==="left"?"selected":""}>Left</option>
-          <option value="center" ${b.align==="center"?"selected":""}>Center</option>
-        </select>
-      </label>
-    </div>
-  `;
-}
-
-// Remove block from sidebar button
+// The rest of your unchanged block controls:
 window.onRemoveBlockSidebar = function() {
   if (selectedBlockIdx < 0) return;
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
@@ -257,7 +194,6 @@ window.onRemoveBlockSidebar = function() {
   saveQuizzes();
   renderApp();
 };
-
 window.onAddPage = function() {
   let quiz = quizzes[currentQuizIdx];
   quiz.pages.push({ bg: "static/2.png", blocks: [] });
@@ -328,6 +264,7 @@ window.onSavePage = function() {
 window.onAddBlock = function(type) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
   let tpl = BLOCK_TYPES.find(b => b.type===type);
+  if (!tpl) return;
   page.blocks = page.blocks||[];
   page.blocks.push({
     type: tpl.type,
@@ -421,10 +358,72 @@ window.onPickBg = function() {
     saveQuizzes(); renderApp();
   }
 };
-window.onSaveQuiz = function() {
-  saveQuizzes();
-  alert("Saved!");
+
+// Supabase save logic
+window.onSaveQuiz = async function() {
+  const statusDiv = document.getElementById("supabase-status");
+  if (statusDiv) statusDiv.textContent = '';
+  let qz = quizzes[currentQuizIdx];
+
+  // Build quiz_slug and quiz_url
+  let quiz_slug = qz.id;
+  let quiz_url = `https://anica-blip.github.io/3c-quiz/${quiz_slug}`;
+
+  // Only text/blocks for app! NO backgrounds.
+  // Remove bg from page objects on upload
+  let pagesForSave = qz.pages.map(p => ({
+    blocks: (p.blocks||[]).map(b => {
+      // Only include relevant block fields
+      let block = {
+        type: b.type,
+        label: b.label,
+        text: b.text,
+        x: b.x, y: b.y,
+        w: b.w, h: b.h,
+        size: b.size,
+        color: b.color,
+        align: b.align,
+        maxlen: b.maxlen
+      };
+      // Only include resultType if this is an answer
+      if (b.type === "answer") block.resultType = b.resultType;
+      return block;
+    })
+  }));
+
+  // Compose quiz object for Supabase
+  let dbQuiz = {
+    quiz_slug,
+    quiz_url,
+    title: qz.title,
+    pages: pagesForSave
+  };
+
+  if (!supabaseClient) {
+    alert("Supabase client not loaded yet, please wait and try again.");
+    return;
+  }
+
+  // Upsert to Supabase
+  let { error } = await supabaseClient
+    .from(SUPABASE_TABLE)
+    .upsert([dbQuiz], { onConflict: "quiz_slug" });
+
+  if (error) {
+    if (statusDiv) {
+      statusDiv.style.color = "#c00";
+      statusDiv.textContent = "❌ Error saving quiz: " + error.message;
+    }
+    alert("Supabase save failed: " + error.message);
+  } else {
+    if (statusDiv) {
+      statusDiv.style.color = "#0a0";
+      statusDiv.textContent = "✅ Quiz saved to Supabase!";
+    }
+    alert("Quiz saved to Supabase!");
+  }
 };
+
 window.onExportQuiz = function() {
   let qz = quizzes[currentQuizIdx];
   let data = JSON.stringify(qz, null, 2);
