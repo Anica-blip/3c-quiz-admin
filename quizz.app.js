@@ -1,9 +1,7 @@
-// (ALL EXISTING CODE YOU PASTED ABOVE IS INCLUDED)
-
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
-const SUPABASE_KEY = 'YOUR_ANON_KEY';
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co'; // <- change to your project URL
+const SUPABASE_KEY = 'YOUR_ANON_KEY'; // <- change to your anon/public key
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const $ = (sel) => document.querySelector(sel);
@@ -18,69 +16,64 @@ let state = {
   answers: [],
 };
 
-// [EXISTING FUNCTIONS HERE: loadQuizFromSupabase, getPageSequence, renderFullscreenBgPage, render, calculateResult, loadQuizFromSupabase(QUIZ_SLUG)]
-
-// ----------------------------
-// ✅ AUTO-NUMBERING & EXPORT
-// ----------------------------
-
-async function getNextQuizSlug() {
-  const { data, error } = await supabase.from('quizzes').select('quiz_slug');
-  if (error || !data) throw new Error('Failed to fetch existing quizzes.');
-
-  const numbers = data
-    .map(q => q.quiz_slug?.match(/quiz\.(\d+)/))
-    .filter(Boolean)
-    .map(m => parseInt(m[1], 10))
-    .filter(n => !isNaN(n));
-
-  const nextNumber = (Math.max(...numbers, 0) + 1).toString().padStart(2, '0');
-  return `quiz.${nextNumber}`;
-}
-
-function prepareExportStructure() {
-  const exportData = {
-    quiz_slug: '',
-    "2.png": quizData.introBg || null,
-    "4.png": quizData.preResultsBg || null,
-    "5a.png": quizData.results?.A ? JSON.stringify(quizData.results.A) : null,
-    "5b.png": quizData.results?.B ? JSON.stringify(quizData.results.B) : null,
-    "5c.png": quizData.results?.C ? JSON.stringify(quizData.results.C) : null,
-    "5d.png": quizData.results?.D ? JSON.stringify(quizData.results.D) : null,
-    "6.png": quizData.thankyouBg || null,
-    thankyou_message: quizData.thankyouMessage || "You have completed the quiz."
-  };
-
-  quizData.questions.forEach((q, idx) => {
-    const key = `3${String.fromCharCode(97 + idx)}.png`;
-    exportData[key] = JSON.stringify({
-      question: q.text,
-      answers: q.answers.map(a => a.label),
-      answerTypes: q.answers.map(a => a.type),
-      bg: q.bg || null
-    });
-  });
-
-  return exportData;
-}
-
-async function saveQuizToSupabase() {
+// Load quiz
+async function loadQuizFromSupabase(slug) {
   try {
-    const newSlug = await getNextQuizSlug();
-    const payload = prepareExportStructure();
-    payload.quiz_slug = newSlug;
+    const { data, error } = await supabase
+      .from('quizzes')
+      .select('*')
+      .eq('quiz_slug', slug)
+      .single();
 
-    const { error } = await supabase.from('quizzes').insert([payload]);
-    if (error) throw new Error("Save failed: " + error.message);
+    if (error || !data) throw new Error("Quiz not found");
 
-    alert(`✅ Quiz saved as ${newSlug}`);
+    const questionPages = [
+      "3a.png", "3b.png", "3c.png", "3d.png", "3e.png", "3f.png", "3g.png", "3h.png"
+    ];
+    const questions = [];
+    questionPages.forEach((col, idx) => {
+      if (data[col]) {
+        const qObj = JSON.parse(data[col]);
+        questions.push({
+          text: qObj.question,
+          answers: (qObj.answers || []).map((a, aIdx) => ({
+            label: typeof a === "string" ? a : (a.label || ""),
+            type: (qObj.answerTypes && qObj.answerTypes[aIdx]) || "A"
+          })),
+          bg: qObj.bg || null
+        });
+      }
+    });
+
+    quizData = {
+      introBg: data["2.png"] || null,
+      questions,
+      preResultsBg: data["4.png"] || null,
+      results: {
+        A: data["5a.png"] ? JSON.parse(data["5a.png"]) : null,
+        B: data["5b.png"] ? JSON.parse(data["5b.png"]) : null,
+        C: data["5c.png"] ? JSON.parse(data["5c.png"]) : null,
+        D: data["5d.png"] ? JSON.parse(data["5d.png"]) : null,
+      },
+      thankyouBg: data["6.png"] || null,
+      thankyouMessage: data["thankyou_message"] || "You have completed the quiz.",
+    };
+
+    state.page = 0;
+    state.loaded = true;
+    render();
   } catch (err) {
-    alert("❌ Error: " + err.message);
+    app.innerHTML = `<div class="error">Error loading quiz: ${err.message}</div>`;
   }
 }
 
-// 🔘 Trigger via Save Button
-const saveBtn = document.getElementById("saveBtn");
-if (saveBtn) {
-  saveBtn.addEventListener("click", saveQuizToSupabase);
-}
+function getPageSequence() {
+  if (!quizData) return [];
+  let seq = [];
+  if (quizData.introBg) seq.push({ type: "intro", bg: quizData.introBg });
+  quizData.questions.forEach((q, idx) => {
+    seq.push({ type: "question", bg: q.bg, qIndex: idx });
+  });
+  if (quizData.preResultsBg) seq.push({ type: "pre-results", bg: quizData.preResultsBg });
+  ["A", "B", "C", "D"].forEach(type => {
+    if (quizData.res
