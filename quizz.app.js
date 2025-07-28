@@ -7,7 +7,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = (sel) => document.querySelector(sel);
 const app = $("#app");
 
-const QUIZ_SLUG = "quiz.01";
+// This value is now dynamic!
+let QUIZ_SLUG = "quiz.01";
 
 let quizData = null;
 let state = {
@@ -15,6 +16,22 @@ let state = {
   loaded: false,
   answers: [],
 };
+
+// Helper to generate next quiz slug (e.g. quiz.02, quiz.03, etc.)
+async function generateNextQuizSlug() {
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select('quiz_slug');
+  if (error || !data || data.length === 0) return "quiz.01";
+  // Find all quiz numbers
+  const slugs = data
+    .map(q => q.quiz_slug)
+    .filter(s => /^quiz\.\d+$/.test(s))
+    .map(s => parseInt(s.split('.')[1], 10))
+    .sort((a, b) => a - b);
+  const nextNum = slugs.length > 0 ? Math.max(...slugs) + 1 : 1;
+  return `quiz.${String(nextNum).padStart(2, '0')}`;
+}
 
 // Load quiz
 async function loadQuizFromSupabase(slug) {
@@ -76,4 +93,80 @@ function getPageSequence() {
   });
   if (quizData.preResultsBg) seq.push({ type: "pre-results", bg: quizData.preResultsBg });
   ["A", "B", "C", "D"].forEach(type => {
-    if (quizData.res
+    if (quizData.results[type]) seq.push({ type: "result", resultType: type, data: quizData.results[type] });
+  });
+  if (quizData.thankyouBg || quizData.thankyouMessage) seq.push({ type: "thankyou", bg: quizData.thankyouBg, message: quizData.thankyouMessage });
+  return seq;
+}
+
+// EDITOR: Start a new quiz, reset form, and generate a new slug
+async function onNewQuiz() {
+  QUIZ_SLUG = await generateNextQuizSlug();
+  quizData = {
+    introBg: null,
+    questions: [],
+    preResultsBg: null,
+    results: {},
+    thankyouBg: null,
+    thankyouMessage: "You have completed the quiz."
+  };
+  state = {
+    page: 0,
+    loaded: false,
+    answers: [],
+  };
+  // Do any UI resets here, then render
+  render();
+}
+
+// Save quiz: always INSERT a new row with a new slug
+async function saveQuizToSupabase(quizObj) {
+  // Make sure to use the current QUIZ_SLUG
+  const payload = {
+    quiz_slug: QUIZ_SLUG,
+    // Map the fields to match your table schema
+    "2.png": quizObj.introBg,
+    "3a.png": quizObj.questions[0] ? JSON.stringify(quizObj.questions[0]) : null,
+    "3b.png": quizObj.questions[1] ? JSON.stringify(quizObj.questions[1]) : null,
+    "3c.png": quizObj.questions[2] ? JSON.stringify(quizObj.questions[2]) : null,
+    "3d.png": quizObj.questions[3] ? JSON.stringify(quizObj.questions[3]) : null,
+    "3e.png": quizObj.questions[4] ? JSON.stringify(quizObj.questions[4]) : null,
+    "3f.png": quizObj.questions[5] ? JSON.stringify(quizObj.questions[5]) : null,
+    "3g.png": quizObj.questions[6] ? JSON.stringify(quizObj.questions[6]) : null,
+    "3h.png": quizObj.questions[7] ? JSON.stringify(quizObj.questions[7]) : null,
+    "4.png": quizObj.preResultsBg,
+    "5a.png": quizObj.results.A ? JSON.stringify(quizObj.results.A) : null,
+    "5b.png": quizObj.results.B ? JSON.stringify(quizObj.results.B) : null,
+    "5c.png": quizObj.results.C ? JSON.stringify(quizObj.results.C) : null,
+    "5d.png": quizObj.results.D ? JSON.stringify(quizObj.results.D) : null,
+    "6.png": quizObj.thankyouBg,
+    thankyou_message: quizObj.thankyouMessage
+  };
+  const { data, error } = await supabase
+    .from('quizzes')
+    .insert([payload]);
+  if (error) {
+    alert("Error saving quiz: " + error.message);
+  } else {
+    alert("Quiz saved as: " + QUIZ_SLUG);
+  }
+}
+
+// Example UI hooks
+$("#newQuizBtn")?.addEventListener("click", onNewQuiz);
+$("#saveQuizBtn")?.addEventListener("click", () => saveQuizToSupabase(quizData));
+
+// Render function (stub, must be filled out for your app)
+function render() {
+  // Example: Render page based on state and quizData
+  if (!state.loaded) {
+    app.innerHTML = `<div>Loading...</div>`;
+    return;
+  }
+  // Your rendering logic goes here...
+  app.innerHTML = `<div>Quiz Editor for ${QUIZ_SLUG}</div>`;
+  // etc.
+}
+
+// Initial load (optional, can load latest quiz or default)
+loadQuizFromSupabase(QUIZ_SLUG);
