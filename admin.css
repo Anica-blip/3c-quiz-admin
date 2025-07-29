@@ -12,6 +12,12 @@ body {
   border-radius: 12px;
   box-shadow: 0 3px 30px rgba(0,0,0,0.06);
   min-height: 80vh;
+  /* CHANGE: stack children vertically! */
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.row-flex {
   display: flex;
   flex-direction: row;
   gap: 0;
@@ -142,7 +148,6 @@ body {
   box-sizing: border-box;
   z-index: 2;
   padding: 0;
-  /* The fix: Remove flexbox properties! */
 }
 
 .text-block.selected {
