@@ -30,6 +30,12 @@ const BLOCK_TYPES = [
   { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 }
 ];
 
+let quizzes = [];
+let supabaseQuizzes = [];
+let currentQuizIdx = 0;
+let selectedPageIdx = 0;
+let selectedBlockIdx = -1;
+
 function blankQuiz() {
   return {
     id: "",
@@ -38,7 +44,17 @@ function blankQuiz() {
   };
 }
 
-function loadQuizzes() {
+// Fetch quizzes from Supabase for archive/list/numbering
+async function fetchSupabaseQuizzes() {
+  const { data, error } = await supabaseClient
+    .from('quizzes')
+    .select('quiz_slug, title');
+  supabaseQuizzes = data || [];
+  return supabaseQuizzes;
+}
+
+// Load quizzes from localStorage (legacy, for compatibility)
+function loadLocalQuizzes() {
   let q = localStorage.getItem('3c-quiz-admin-quizzes-v3');
   if (!q) return [];
   try {
@@ -53,9 +69,11 @@ function saveQuizzes() {
   localStorage.setItem('3c-quiz-admin-quizzes-v3', JSON.stringify(quizzes));
 }
 
-function newQuizId() {
-  let used = quizzes.map(q => {
-    let m = q.id.match(/^quiz\.(\d+)$/);
+// Generate new quiz ID based on Supabase data to avoid duplicates
+async function newQuizId() {
+  await fetchSupabaseQuizzes();
+  const used = supabaseQuizzes.map(q => {
+    let m = q.quiz_slug.match(/^quiz\.(\d+)$/);
     return m ? parseInt(m[1]) : null;
   }).filter(n => n !== null);
   let n = 1;
@@ -63,11 +81,40 @@ function newQuizId() {
   return `quiz.${String(n).padStart(2,'0')}`;
 }
 
-let quizzes = loadQuizzes();
-if (quizzes.length === 0) quizzes.push(Object.assign(blankQuiz(), {id: "quiz.01"}));
-let currentQuizIdx = 0;
-let selectedPageIdx = 0;
-let selectedBlockIdx = -1;
+// Render quiz archive table from Supabase data
+async function renderQuizArchive() {
+  await fetchSupabaseQuizzes();
+  if (!supabaseQuizzes.length) return `<div>No quizzes found in Supabase.</div>`;
+  return `
+    <div style="margin-top:30px;">
+      <h2>Quiz Archive</h2>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th>Quiz #</th>
+            <th>Title</th>
+            <th>URL</th>
+          </tr>
+        </thead>
+        <tbody>
+        ${supabaseQuizzes.map(q => `
+          <tr>
+            <td>${q.quiz_slug}</td>
+            <td>${q.title || ''}</td>
+            <td>
+              <input type="text" value="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" readonly style="width:80%;">
+              <button onclick="navigator.clipboard.writeText('https://anica-blip.github.io/3c-quiz/${q.quiz_slug}')">Copy</button>
+              <a href="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" target="_blank">Open</a>
+            </td>
+          </tr>
+        `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ========== UI/Editor Logic ==========
 
 function renderCanvas(page) {
   if (!page) return `<div class="editor-canvas"></div>`;
@@ -152,7 +199,8 @@ function renderBlockSettings(page) {
   `;
 }
 
-function renderApp() {
+// Main render function, now async for archive
+async function renderApp() {
   try {
     const app = document.getElementById('app');
     if (!app) throw new Error("App container not found!");
@@ -231,6 +279,7 @@ function renderApp() {
           </div>
         </div>
       </div>
+      <div id="quiz-archive-wrap"></div>
     `;
     setTimeout(attachCanvasEvents, 30);
     setTimeout(()=>{
@@ -243,10 +292,16 @@ function renderApp() {
         }
       }
     }, 100);
+
+    // Render quiz archive
+    const archiveDiv = document.getElementById('quiz-archive-wrap');
+    if (archiveDiv) archiveDiv.innerHTML = await renderQuizArchive();
   } catch(e) {
     showFatalError("Render error: " + e.message);
   }
 }
+
+// ========== Block/Page/Quiz Control Logic ==========
 
 window.onAddAnswerBlock = function(letter) {
   let coords = {
@@ -390,6 +445,7 @@ window.onSaveQuiz = async function() {
   let dbQuiz = {
     quiz_slug,
     quiz_url,
+    title: qz.title,
     pages: qz.pages // store all quiz pages/blocks here, as JSON
   };
 
@@ -414,6 +470,7 @@ window.onSaveQuiz = async function() {
       statusDiv.textContent = "✅ Quiz saved to Supabase!";
     }
     alert("Quiz saved to Supabase!");
+    await renderApp(); // Refresh archive after save
   }
 };
 
@@ -564,8 +621,16 @@ window.onDuplicatePage = function() {
   saveQuizzes();
   renderApp();
 };
-window.onNewQuizTab = function() {
-  window.open(window.location.href, "_blank");
+window.onNewQuizTab = async function() {
+  // Generate a new quiz ID based on Supabase to avoid collision
+  const id = await newQuizId();
+  const newQuiz = Object.assign(blankQuiz(), {id});
+  quizzes.push(newQuiz);
+  currentQuizIdx = quizzes.length-1;
+  selectedPageIdx = 0;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
 };
 window.onBgChange = function(val) {
   let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
@@ -582,7 +647,16 @@ window.onPickBg = function() {
   }
 };
 
-renderApp();
+// ========== Initialization ==========
+
+(async function init() {
+  quizzes = loadLocalQuizzes();
+  if (quizzes.length === 0) {
+    const id = await newQuizId();
+    quizzes.push(Object.assign(blankQuiz(), {id}));
+  }
+  await renderApp();
+})();
 
     } catch(e) {
       showFatalError(e.message || e);
