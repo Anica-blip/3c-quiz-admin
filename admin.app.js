@@ -93,34 +93,36 @@
         });
 
         return `
-          <section id="quiz-archive-section" style="margin-top:40px;padding-top:12px;border-top:2px solid #ededef;">
-            <h2 style="margin-top:0;">Quiz Archive</h2>
-            <table style="width:100%;border-collapse:collapse;">
-              <thead>
-                <tr>
-                  <th style="text-align:left;padding:6px 8px;">Edit</th>
-                  <th style="text-align:left;padding:6px 8px;">Quiz #</th>
-                  <th style="text-align:left;padding:6px 8px;">Title</th>
-                  <th style="text-align:left;padding:6px 8px;">URL</th>
-                </tr>
-              </thead>
-              <tbody>
-              ${sortedQuizzes.map((q, i) => `
-                <tr>
-                  <td style="padding:6px 8px;">
-                    <button onclick="window.onLoadQuizFromArchive(${i})" style="padding:2px 10px;border-radius:4px;background:#0070f3;color:#fff;">Edit</button>
-                  </td>
-                  <td style="padding:6px 8px;">${q.quiz_slug}</td>
-                  <td style="padding:6px 8px;">${q.title || ''}</td>
-                  <td style="padding:6px 8px;">
-                    <input type="text" value="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" readonly style="width:70%;">
-                    <button onclick="navigator.clipboard.writeText('https://anica-blip.github.io/3c-quiz/${q.quiz_slug}')">Copy</button>
-                    <a href="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" target="_blank">Open</a>
-                  </td>
-                </tr>
-              `).join('')}
-              </tbody>
-            </table>
+          <section id="quiz-archive-section" style="margin-top:0;padding-top:0;">
+            <div style="background:#3b0066;color:#fff;padding:28px 24px 32px 24px;border-radius:16px;margin-top:40px;">
+              <h2 style="margin-top:0;margin-bottom:20px;font-size:1.6em;font-weight:700;">Quiz Archive</h2>
+              <table style="width:100%;border-collapse:collapse;background:#2b004d;color:#fff;border-radius:8px;overflow:hidden;">
+                <thead>
+                  <tr style="background:#540099;">
+                    <th style="text-align:left;padding:10px 12px;">Edit</th>
+                    <th style="text-align:left;padding:10px 12px;">Quiz #</th>
+                    <th style="text-align:left;padding:10px 12px;">Title</th>
+                    <th style="text-align:left;padding:10px 12px;">URL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                ${sortedQuizzes.map((q, i) => `
+                  <tr style="border-bottom:1px solid #540099;">
+                    <td style="padding:10px 12px;">
+                      <button onclick="window.onLoadQuizFromArchive(${i})" style="padding:2px 10px;border-radius:4px;background:#0070f3;color:#fff;">Edit</button>
+                    </td>
+                    <td style="padding:10px 12px;">${q.quiz_slug}</td>
+                    <td style="padding:10px 12px;">${q.title || ''}</td>
+                    <td style="padding:10px 12px;">
+                      <input type="text" value="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" readonly style="width:70%;background:#eee;color:#222;border:none;border-radius:6px;padding:4px;">
+                      <button onclick="navigator.clipboard.writeText('https://anica-blip.github.io/3c-quiz/${q.quiz_slug}')" style="margin-left:6px;padding:2px 10px;border-radius:4px;background:#fff;color:#540099;font-weight:600;">Copy</button>
+                      <a href="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" target="_blank" style="margin-left:6px;color:#ffe;font-weight:600;">Open</a>
+                    </td>
+                  </tr>
+                `).join('')}
+                </tbody>
+              </table>
+            </div>
           </section>
         `;
       }
