@@ -7,8 +7,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = (sel) => document.querySelector(sel);
 const app = $("#app");
 
-// This value is now dynamic!
-let QUIZ_SLUG = "quiz.01";
+let QUIZ_SLUG = null;
+let QUIZ_TITLE = ""; // New: store the quiz title
+let QUIZ_URL = "";   // New: store the quiz URL
 
 let quizData = null;
 let state = {
@@ -17,19 +18,15 @@ let state = {
   answers: [],
 };
 
-// Helper to generate next quiz slug (e.g. quiz.02, quiz.03, etc.)
+// Helper to generate next quiz slug using Supabase auto-increment id
 async function generateNextQuizSlug() {
+  // Get row count to generate next slug (e.g. quiz.01, quiz.02, ...)
   const { data, error } = await supabase
     .from('quizzes')
-    .select('quiz_slug');
-  if (error || !data || data.length === 0) return "quiz.01";
-  // Find all quiz numbers
-  const slugs = data
-    .map(q => q.quiz_slug)
-    .filter(s => /^quiz\.\d+$/.test(s))
-    .map(s => parseInt(s.split('.')[1], 10))
-    .sort((a, b) => a - b);
-  const nextNum = slugs.length > 0 ? Math.max(...slugs) + 1 : 1;
+    .select('id');
+  if (error || !data) return "quiz.01";
+  // Next slug is count+1
+  const nextNum = data.length + 1;
   return `quiz.${String(nextNum).padStart(2, '0')}`;
 }
 
@@ -61,6 +58,10 @@ async function loadQuizFromSupabase(slug) {
         });
       }
     });
+
+    QUIZ_TITLE = data.title || ""; // Load the quiz title
+    QUIZ_SLUG = data.quiz_slug;
+    QUIZ_URL = generateQuizUrl(QUIZ_SLUG); // set the quiz URL
 
     quizData = {
       introBg: data["2.png"] || null,
@@ -99,9 +100,17 @@ function getPageSequence() {
   return seq;
 }
 
-// EDITOR: Start a new quiz, reset form, and generate a new slug
+// Helper to generate the quiz URL for display
+function generateQuizUrl(slug) {
+  // Change this to your actual quiz viewing URL pattern
+  return `https://your-site.com/quiz/${slug}`;
+}
+
+// EDITOR: Start a new quiz, reset form, and generate a new slug/title
 async function onNewQuiz() {
   QUIZ_SLUG = await generateNextQuizSlug();
+  QUIZ_TITLE = ""; // Reset the title for a new quiz
+  QUIZ_URL = generateQuizUrl(QUIZ_SLUG);
   quizData = {
     introBg: null,
     questions: [],
@@ -115,16 +124,17 @@ async function onNewQuiz() {
     loaded: false,
     answers: [],
   };
-  // Do any UI resets here, then render
   render();
 }
 
-// Save quiz: always INSERT a new row with a new slug
+// Save quiz: always INSERT a new row with a new slug and title
 async function saveQuizToSupabase(quizObj) {
-  // Make sure to use the current QUIZ_SLUG
+  const titleInput = $("#quizTitleInput");
+  QUIZ_TITLE = titleInput ? titleInput.value : QUIZ_TITLE;
+
   const payload = {
     quiz_slug: QUIZ_SLUG,
-    // Map the fields to match your table schema
+    title: QUIZ_TITLE,
     "2.png": quizObj.introBg,
     "3a.png": quizObj.questions[0] ? JSON.stringify(quizObj.questions[0]) : null,
     "3b.png": quizObj.questions[1] ? JSON.stringify(quizObj.questions[1]) : null,
@@ -142,14 +152,25 @@ async function saveQuizToSupabase(quizObj) {
     "6.png": quizObj.thankyouBg,
     thankyou_message: quizObj.thankyouMessage
   };
+
   const { data, error } = await supabase
     .from('quizzes')
-    .insert([payload]);
+    .insert([payload])
+    .select(); // <-- returns the inserted row(s) including id
+
   if (error) {
     alert("Error saving quiz: " + error.message);
   } else {
-    alert("Quiz saved as: " + QUIZ_SLUG);
+    // Get the quiz_slug from the inserted quiz
+    const quizRow = data && data[0];
+    QUIZ_URL = quizRow
+      ? generateQuizUrl(quizRow.quiz_slug)
+      : "unknown";
+    // Show the url in the editor
+    $("#quizUrlDisplay").innerText = `Quiz URL: ${QUIZ_URL}`;
+    alert("Quiz saved as: " + QUIZ_SLUG + " (" + QUIZ_TITLE + ")\nURL: " + QUIZ_URL);
   }
+  render();
 }
 
 // Example UI hooks
@@ -158,15 +179,21 @@ $("#saveQuizBtn")?.addEventListener("click", () => saveQuizToSupabase(quizData))
 
 // Render function (stub, must be filled out for your app)
 function render() {
-  // Example: Render page based on state and quizData
-  if (!state.loaded) {
-    app.innerHTML = `<div>Loading...</div>`;
-    return;
-  }
-  // Your rendering logic goes here...
-  app.innerHTML = `<div>Quiz Editor for ${QUIZ_SLUG}</div>`;
-  // etc.
+  app.innerHTML = `
+    <div>
+      <label for="quizTitleInput">Quiz Title:</label>
+      <input type="text" id="quizTitleInput" value="${QUIZ_TITLE}" placeholder="Enter quiz title">
+      <div>Quiz Editor for ${QUIZ_SLUG || "[new quiz]"}</div>
+      <div id="quizUrlDisplay">Quiz URL: ${QUIZ_URL ? QUIZ_URL : ""}</div>
+      <!-- Add more editor UI here -->
+      <button id="newQuizBtn">New Quiz</button>
+      <button id="saveQuizBtn">Save Quiz</button>
+    </div>
+  `;
+  // Re-attach listeners because innerHTML wipes them
+  $("#newQuizBtn")?.addEventListener("click", onNewQuiz);
+  $("#saveQuizBtn")?.addEventListener("click", () => saveQuizToSupabase(quizData));
 }
 
-// Initial load (optional, can load latest quiz or default)
-loadQuizFromSupabase(QUIZ_SLUG);
+// Initial load: load the first quiz (optional)
+loadQuizFromSupabase("quiz.01");
