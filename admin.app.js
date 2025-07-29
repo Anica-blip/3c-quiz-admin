@@ -92,19 +92,10 @@
           return getNum(a) - getNum(b);
         });
 
-        // DISTINCT section with dark purple background
+        // DISTINCT section with dark purple background and full width for easier reading
         return `
-          <section id="quiz-archive-section" style="margin-top:50px;">
-            <div style="
-              background: #32005e;
-              color: #fff;
-              border-radius: 18px;
-              padding: 32px 32px 40px 32px;
-              box-shadow: 0 6px 24px rgba(50,0,94,0.28);
-              max-width: 900px;
-              margin: 0 auto;
-              margin-bottom: 48px;
-              border: 2px solid #430086;">
+          <section id="quiz-archive-section" style="margin-top:60px;">
+            <div style="background: #32005e; color: #fff; border-radius: 18px; padding: 32px 32px 40px 32px; box-shadow: 0 6px 24px rgba(50,0,94,0.28); max-width: 1300px; margin: 0 auto; margin-bottom: 48px; border: 2px solid #430086;">
               <h2 style="font-size:2em;font-weight:800;margin:0 0 26px 0;letter-spacing:1px;">Quiz Archive</h2>
               <table style="width:100%;border-collapse:collapse;background:#2b004d;color:#fff;border-radius:8px;overflow:hidden;box-shadow:0 3px 12px #0002;">
                 <thead>
@@ -137,7 +128,7 @@
         `;
       }
 
-      // Load quiz from archive by quiz_slug
+      // Correct handler: open quiz by quiz_slug, not index!
       window.onLoadQuizFromArchiveBySlug = async function(slug) {
         await fetchSupabaseQuizzes();
         const quiz = supabaseQuizzes.find(q => q.quiz_slug === slug);
@@ -402,9 +393,6 @@
           showFatalError("Render error: " + e.message);
         }
       }
-
-      // ... [the rest of the file remains unchanged, including all block/page/quiz controls, finalization, etc.] ...
-      // (for brevity, not repeating unchanged code from previous versions)
 
       // ========== Block/Page/Quiz Control Logic ==========
 
