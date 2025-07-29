@@ -1,7 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const SUPABASE_URL = 'https://cgxjqsbrditbteqhdyus.supabase.co'; // <- your project URL
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNneGpxc2JyZGl0YnRlcWhkeXVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExMTY1ODEsImV4cCI6MjA2NjY5MjU4MX0.xUDy5ic-r52kmRtocdcW8Np9-lczjMZ6YKPXc03rIG4'; // <- your anon/public key
+const SUPABASE_URL = 'https://cgxjqsbrditbteqhdyus.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNneGpxc2JyZGl0YnRlcWhkeXVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExMTY1ODEsImV4cCI6MjA2NjY5MjU4MX0.xUDy5ic-r52kmRtocdcW8Np9-lczjMZ6YKPXc03rIG4';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const $ = (sel) => document.querySelector(sel);
@@ -18,6 +18,7 @@ let state = {
   answers: [],
 };
 
+// Generates next quiz slug by counting existing rows
 async function generateNextQuizSlug() {
   const { data, error } = await supabase
     .from('quizzes')
@@ -27,11 +28,12 @@ async function generateNextQuizSlug() {
   return `quiz.${String(nextNum).padStart(2, '0')}`;
 }
 
+// Creates quiz URL (change to your real viewer URL)
 function generateQuizUrl(slug) {
-  // Change this to your actual quiz viewing URL pattern
   return `https://your-site.com/quiz/${slug}`;
 }
 
+// Loads quiz from Supabase (by slug)
 async function loadQuizFromSupabase(slug) {
   try {
     const { data, error } = await supabase
@@ -86,21 +88,6 @@ async function loadQuizFromSupabase(slug) {
   }
 }
 
-function getPageSequence() {
-  if (!quizData) return [];
-  let seq = [];
-  if (quizData.introBg) seq.push({ type: "intro", bg: quizData.introBg });
-  quizData.questions.forEach((q, idx) => {
-    seq.push({ type: "question", bg: q.bg, qIndex: idx });
-  });
-  if (quizData.preResultsBg) seq.push({ type: "pre-results", bg: quizData.preResultsBg });
-  ["A", "B", "C", "D"].forEach(type => {
-    if (quizData.results[type]) seq.push({ type: "result", resultType: type, data: quizData.results[type] });
-  });
-  if (quizData.thankyouBg || quizData.thankyouMessage) seq.push({ type: "thankyou", bg: quizData.thankyouBg, message: quizData.thankyouMessage });
-  return seq;
-}
-
 async function onNewQuiz() {
   QUIZ_SLUG = await generateNextQuizSlug();
   QUIZ_TITLE = "";
@@ -121,6 +108,7 @@ async function onNewQuiz() {
   render();
 }
 
+// Always INSERT: creates new row, new quiz_slug, new URL
 async function saveQuizToSupabase(quizObj) {
   const titleInput = $("#quizTitleInput");
   QUIZ_TITLE = titleInput ? titleInput.value : QUIZ_TITLE;
@@ -158,10 +146,16 @@ async function saveQuizToSupabase(quizObj) {
     QUIZ_URL = quizRow
       ? generateQuizUrl(quizRow.quiz_slug)
       : "unknown";
-    $("#quizUrlDisplay").innerText = `Quiz URL: ${QUIZ_URL}`;
+    render();
+    setTimeout(() => {
+      const urlBlock = $("#quizUrlBlock");
+      if (urlBlock) {
+        urlBlock.style.display = "block";
+        urlBlock.querySelector("#quizUrlCopyField").value = QUIZ_URL;
+      }
+    }, 100);
     alert("Quiz saved as: " + QUIZ_SLUG + " (" + QUIZ_TITLE + ")\nURL: " + QUIZ_URL);
   }
-  render();
 }
 
 function render() {
@@ -170,13 +164,25 @@ function render() {
       <label for="quizTitleInput">Quiz Title:</label>
       <input type="text" id="quizTitleInput" value="${QUIZ_TITLE}" placeholder="Enter quiz title">
       <div>Quiz Editor for ${QUIZ_SLUG || "[new quiz]"}</div>
-      <div id="quizUrlDisplay">Quiz URL: ${QUIZ_URL ? QUIZ_URL : ""}</div>
+      <div id="quizUrlBlock" style="display:${QUIZ_URL ? 'block' : 'none'};margin:10px 0;padding:10px;border:1px solid #ccc;background:#f9f9f9;">
+        <strong>Quiz URL:</strong>
+        <input type="text" id="quizUrlCopyField" value="${QUIZ_URL}" readonly style="width:80%;">
+        <button id="copyQuizUrlBtn" style="margin-left:10px;">Copy URL</button>
+      </div>
       <button id="newQuizBtn">New Quiz</button>
       <button id="saveQuizBtn">Save Quiz</button>
     </div>
   `;
   $("#newQuizBtn")?.addEventListener("click", onNewQuiz);
   $("#saveQuizBtn")?.addEventListener("click", () => saveQuizToSupabase(quizData));
+  // Copy URL functionality
+  $("#copyQuizUrlBtn")?.addEventListener("click", () => {
+    const urlField = $("#quizUrlCopyField");
+    if (urlField) {
+      urlField.select();
+      document.execCommand('copy');
+    }
+  });
 }
 
 // Initial load: load the first quiz (optional)
