@@ -12,7 +12,11 @@ let QUIZ_TITLE = "";
 let QUIZ_URL = "";
 let quizArchive = []; // will hold all quizzes for listing
 
-let quizData = null;
+let quizData = {
+  id: "",
+  title: "",
+  pages: [],
+};
 let state = {
   page: 0,
   loaded: false,
@@ -49,40 +53,23 @@ async function loadQuizFromSupabase(slug) {
 
     if (error || !data) throw new Error("Quiz not found");
 
-    const questionPages = [
-      "3a.png", "3b.png", "3c.png", "3d.png", "3e.png", "3f.png", "3g.png", "3h.png"
-    ];
-    const questions = [];
-    questionPages.forEach((col, idx) => {
-      if (data[col]) {
-        const qObj = JSON.parse(data[col]);
-        questions.push({
-          text: qObj.question,
-          answers: (qObj.answers || []).map((a, aIdx) => ({
-            label: typeof a === "string" ? a : (a.label || ""),
-            type: (qObj.answerTypes && qObj.answerTypes[aIdx]) || "A"
-          })),
-          bg: qObj.bg || null
-        });
+    let pages = data.pages;
+    if (typeof pages === "string") {
+      try {
+        pages = JSON.parse(pages);
+      } catch (e) {
+        throw new Error("Pages column is not valid JSON.");
       }
-    });
+    }
 
     QUIZ_TITLE = data.title || "";
     QUIZ_SLUG = data.quiz_slug;
     QUIZ_URL = generateQuizUrl(QUIZ_SLUG);
 
     quizData = {
-      introBg: data["2.png"] || null,
-      questions,
-      preResultsBg: data["4.png"] || null,
-      results: {
-        A: data["5a.png"] ? JSON.parse(data["5a.png"]) : null,
-        B: data["5b.png"] ? JSON.parse(data["5b.png"]) : null,
-        C: data["5c.png"] ? JSON.parse(data["5c.png"]) : null,
-        D: data["5d.png"] ? JSON.parse(data["5d.png"]) : null,
-      },
-      thankyouBg: data["6.png"] || null,
-      thankyouMessage: data["thankyou_message"] || "You have completed the quiz.",
+      id: QUIZ_SLUG,
+      title: QUIZ_TITLE,
+      pages: pages || [],
     };
 
     state.page = 0;
@@ -99,12 +86,9 @@ async function onNewQuiz() {
   QUIZ_TITLE = "";
   QUIZ_URL = generateQuizUrl(QUIZ_SLUG);
   quizData = {
-    introBg: null,
-    questions: [],
-    preResultsBg: null,
-    results: {},
-    thankyouBg: null,
-    thankyouMessage: "You have completed the quiz."
+    id: QUIZ_SLUG,
+    title: "",
+    pages: [],
   };
   state = {
     page: 0,
@@ -119,30 +103,16 @@ async function saveQuizToSupabase(quizObj) {
   const titleInput = $("#quizTitleInput");
   QUIZ_TITLE = titleInput ? titleInput.value : QUIZ_TITLE;
 
+  // Build payload to save: quiz_slug, title, pages
   const payload = {
     quiz_slug: QUIZ_SLUG,
     title: QUIZ_TITLE,
-    "2.png": quizObj.introBg,
-    "3a.png": quizObj.questions[0] ? JSON.stringify(quizObj.questions[0]) : null,
-    "3b.png": quizObj.questions[1] ? JSON.stringify(quizObj.questions[1]) : null,
-    "3c.png": quizObj.questions[2] ? JSON.stringify(quizObj.questions[2]) : null,
-    "3d.png": quizObj.questions[3] ? JSON.stringify(quizObj.questions[3]) : null,
-    "3e.png": quizObj.questions[4] ? JSON.stringify(quizObj.questions[4]) : null,
-    "3f.png": quizObj.questions[5] ? JSON.stringify(quizObj.questions[5]) : null,
-    "3g.png": quizObj.questions[6] ? JSON.stringify(quizObj.questions[6]) : null,
-    "3h.png": quizObj.questions[7] ? JSON.stringify(quizObj.questions[7]) : null,
-    "4.png": quizObj.preResultsBg,
-    "5a.png": quizObj.results.A ? JSON.stringify(quizObj.results.A) : null,
-    "5b.png": quizObj.results.B ? JSON.stringify(quizObj.results.B) : null,
-    "5c.png": quizObj.results.C ? JSON.stringify(quizObj.results.C) : null,
-    "5d.png": quizObj.results.D ? JSON.stringify(quizObj.results.D) : null,
-    "6.png": quizObj.thankyouBg,
-    thankyou_message: quizObj.thankyouMessage
+    pages: JSON.stringify(quizObj.pages),
   };
 
   const { data, error } = await supabase
     .from('quizzes')
-    .insert([payload])
+    .upsert([payload]) // use upsert for update/insert
     .select();
 
   if (error) {
@@ -154,7 +124,6 @@ async function saveQuizToSupabase(quizObj) {
       : "unknown";
     await fetchQuizArchive(); // refresh archive after insert
     render();
-    // Focus and select the URL for easy copying
     setTimeout(() => {
       const urlField = $("#quizUrlCopyField");
       if (urlField) {
@@ -234,5 +203,7 @@ function render() {
 // Initial load: get archive and load the first quiz
 (async () => {
   await fetchQuizArchive();
-  loadQuizFromSupabase("quiz.01");
+  // Optionally load a quiz by slug if you want
+  // loadQuizFromSupabase("quiz.01");
+  render();
 })();
