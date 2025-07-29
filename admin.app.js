@@ -226,7 +226,6 @@ async function renderApp() {
             `).join('')}
           </ul>
           <div class="page-actions">
-            <button onclick="onAddPage()">+ Add Page</button>
             <button onclick="onDuplicatePage()">Duplicate Page</button>
           </div>
         </div>
@@ -255,7 +254,6 @@ async function renderApp() {
           <button onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''}>&larr;</button>
           <span style="margin:0 12px;">Page ${selectedPageIdx+1} / ${pages.length}</span>
           <button onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''}>&rarr;</button>
-          <button onclick="onAddPage()" style="margin-left:12px;">+ Create Next Page</button>
           <button onclick="onSavePage()" style="margin-left:8px;">💾 Save Page</button>
         </div>
         <div class="editor-canvas-wrap">
