@@ -92,31 +92,41 @@
           return getNum(a) - getNum(b);
         });
 
+        // DISTINCT section with dark purple background
         return `
-          <section id="quiz-archive-section" style="margin-top:0;padding-top:0;">
-            <div style="background:#3b0066;color:#fff;padding:28px 24px 32px 24px;border-radius:16px;margin-top:40px;">
-              <h2 style="margin-top:0;margin-bottom:20px;font-size:1.6em;font-weight:700;">Quiz Archive</h2>
-              <table style="width:100%;border-collapse:collapse;background:#2b004d;color:#fff;border-radius:8px;overflow:hidden;">
+          <section id="quiz-archive-section" style="margin-top:50px;">
+            <div style="
+              background: #32005e;
+              color: #fff;
+              border-radius: 18px;
+              padding: 32px 32px 40px 32px;
+              box-shadow: 0 6px 24px rgba(50,0,94,0.28);
+              max-width: 900px;
+              margin: 0 auto;
+              margin-bottom: 48px;
+              border: 2px solid #430086;">
+              <h2 style="font-size:2em;font-weight:800;margin:0 0 26px 0;letter-spacing:1px;">Quiz Archive</h2>
+              <table style="width:100%;border-collapse:collapse;background:#2b004d;color:#fff;border-radius:8px;overflow:hidden;box-shadow:0 3px 12px #0002;">
                 <thead>
                   <tr style="background:#540099;">
-                    <th style="text-align:left;padding:10px 12px;">Edit</th>
-                    <th style="text-align:left;padding:10px 12px;">Quiz #</th>
-                    <th style="text-align:left;padding:10px 12px;">Title</th>
-                    <th style="text-align:left;padding:10px 12px;">URL</th>
+                    <th style="text-align:left;padding:14px 16px;font-size:1.15em;">Edit</th>
+                    <th style="text-align:left;padding:14px 16px;font-size:1.15em;">Quiz #</th>
+                    <th style="text-align:left;padding:14px 16px;font-size:1.15em;">Title</th>
+                    <th style="text-align:left;padding:14px 16px;font-size:1.15em;">URL</th>
                   </tr>
                 </thead>
                 <tbody>
                 ${sortedQuizzes.map((q, i) => `
-                  <tr style="border-bottom:1px solid #540099;">
-                    <td style="padding:10px 12px;">
-                      <button onclick="window.onLoadQuizFromArchive(${i})" style="padding:2px 10px;border-radius:4px;background:#0070f3;color:#fff;">Edit</button>
+                  <tr style="border-bottom:1px solid #430086;">
+                    <td style="padding:12px 16px;">
+                      <button onclick="window.onLoadQuizFromArchive(${i})" style="padding:4px 16px;border-radius:6px;background:#0070f3;color:#fff;font-weight:600;">Edit</button>
                     </td>
-                    <td style="padding:10px 12px;">${q.quiz_slug}</td>
-                    <td style="padding:10px 12px;">${q.title || ''}</td>
-                    <td style="padding:10px 12px;">
+                    <td style="padding:12px 16px;font-size:1.07em;">${q.quiz_slug}</td>
+                    <td style="padding:12px 16px;font-size:1.07em;">${q.title || ''}</td>
+                    <td style="padding:12px 16px;">
                       <input type="text" value="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" readonly style="width:70%;background:#eee;color:#222;border:none;border-radius:6px;padding:4px;">
-                      <button onclick="navigator.clipboard.writeText('https://anica-blip.github.io/3c-quiz/${q.quiz_slug}')" style="margin-left:6px;padding:2px 10px;border-radius:4px;background:#fff;color:#540099;font-weight:600;">Copy</button>
-                      <a href="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" target="_blank" style="margin-left:6px;color:#ffe;font-weight:600;">Open</a>
+                      <button onclick="navigator.clipboard.writeText('https://anica-blip.github.io/3c-quiz/${q.quiz_slug}')" style="margin-left:6px;padding:4px 12px;border-radius:4px;background:#fff;color:#540099;font-weight:700;">Copy</button>
+                      <a href="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" target="_blank" style="margin-left:10px;color:#ffe;font-weight:700;">Open</a>
                     </td>
                   </tr>
                 `).join('')}
