@@ -223,6 +223,64 @@ function renderBlockSettings(page) {
   `;
 }
 
+// ========== Canvas Events Logic ==========
+
+function attachCanvasEvents() {
+  const canvas = document.getElementById('editor-canvas');
+  if (!canvas) return;
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
+  canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
+    blockEl.onmousedown = e => {
+      if (e.target.classList.contains('block-label') ||
+          e.target.classList.contains('block-content') ||
+          e.target.classList.contains('resize-handle')) return;
+      dragIdx = bi;
+      resizing = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      startBlock = {...page.blocks[bi]};
+      selectedBlockIdx = bi;
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    };
+    let resizeHandle = blockEl.querySelector('.resize-handle');
+    if (resizeHandle) {
+      resizeHandle.onmousedown = e => {
+        dragIdx = bi;
+        resizing = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startBlock = {...page.blocks[bi]};
+        document.body.style.userSelect = "none";
+        e.stopPropagation();
+        e.preventDefault();
+      };
+    }
+  });
+  window.onmousemove = e => {
+    if (dragIdx===-1) return;
+    let block = page.blocks[dragIdx];
+    if (!block) return;
+    if (resizing) {
+      let dw = e.clientX-startX, dh = e.clientY-startY;
+      block.w = Math.max(80, Math.min(CANVAS_W-16, startBlock.w+dw));
+      block.h = Math.max(24, startBlock.h+dh);
+    } else {
+      let dx = e.clientX-startX, dy = e.clientY-startY;
+      block.x = Math.max(0, Math.min(CANVAS_W-block.w, startBlock.x+dx));
+      block.y = Math.max(0, Math.min(CANVAS_H-block.h, startBlock.y+dy));
+    }
+    saveQuizzes();
+    renderApp();
+  };
+  window.onmouseup = e => {
+    dragIdx = -1;
+    resizing = false;
+    document.body.style.userSelect = "";
+  };
+}
+
 // Main render function, now async for archive
 async function renderApp() {
   try {
@@ -539,62 +597,6 @@ window.onImportQuiz = function() {
   };
   inp.click();
 };
-
-function attachCanvasEvents() {
-  const canvas = document.getElementById('editor-canvas');
-  if (!canvas) return;
-  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-  let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
-  canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
-    blockEl.onmousedown = e => {
-      if (e.target.classList.contains('block-label') ||
-          e.target.classList.contains('block-content') ||
-          e.target.classList.contains('resize-handle')) return;
-      dragIdx = bi;
-      resizing = false;
-      startX = e.clientX;
-      startY = e.clientY;
-      startBlock = {...page.blocks[bi]};
-      selectedBlockIdx = bi;
-      document.body.style.userSelect = "none";
-      e.preventDefault();
-    };
-    let resizeHandle = blockEl.querySelector('.resize-handle');
-    if (resizeHandle) {
-      resizeHandle.onmousedown = e => {
-        dragIdx = bi;
-        resizing = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        startBlock = {...page.blocks[bi]};
-        document.body.style.userSelect = "none";
-        e.stopPropagation();
-        e.preventDefault();
-      };
-    }
-  });
-  window.onmousemove = e => {
-    if (dragIdx===-1) return;
-    let block = page.blocks[dragIdx];
-    if (!block) return;
-    if (resizing) {
-      let dw = e.clientX-startX, dh = e.clientY-startY;
-      block.w = Math.max(80, Math.min(CANVAS_W-16, startBlock.w+dw));
-      block.h = Math.max(24, startBlock.h+dh);
-    } else {
-      let dx = e.clientX-startX, dy = e.clientY-startY;
-      block.x = Math.max(0, Math.min(CANVAS_W-block.w, startBlock.x+dx));
-      block.y = Math.max(0, Math.min(CANVAS_H-block.h, startBlock.y+dy));
-    }
-    saveQuizzes();
-    renderApp();
-  };
-  window.onmouseup = e => {
-    dragIdx = -1;
-    resizing = false;
-    document.body.style.userSelect = "";
-  };
-}
 
 window.onSelectPage = function(idx) {
   selectedPageIdx = idx;
