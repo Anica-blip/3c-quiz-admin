@@ -10,6 +10,7 @@ const app = $("#app");
 let QUIZ_SLUG = null;
 let QUIZ_TITLE = "";
 let QUIZ_URL = "";
+let quizArchive = []; // will hold all quizzes for listing
 
 let quizData = null;
 let state = {
@@ -18,22 +19,26 @@ let state = {
   answers: [],
 };
 
-// Generates next quiz slug by counting existing rows
-async function generateNextQuizSlug() {
+async function fetchQuizArchive() {
+  // Get all quizzes ordered by id desc (recent first)
   const { data, error } = await supabase
     .from('quizzes')
-    .select('id');
-  if (error || !data) return "quiz.01";
-  const nextNum = data.length + 1;
+    .select('quiz_slug,title')
+    .order('id', { ascending: false });
+  quizArchive = data || [];
+}
+
+async function generateNextQuizSlug() {
+  await fetchQuizArchive();
+  const nextNum = (quizArchive.length || 0) + 1;
   return `quiz.${String(nextNum).padStart(2, '0')}`;
 }
 
-// Creates quiz URL (change to your real viewer URL)
 function generateQuizUrl(slug) {
+  // CHANGE THIS TO YOUR ACTUAL QUIZ VIEWER ROUTE!
   return `https://your-site.com/quiz/${slug}`;
 }
 
-// Loads quiz from Supabase (by slug)
 async function loadQuizFromSupabase(slug) {
   try {
     const { data, error } = await supabase
@@ -82,6 +87,7 @@ async function loadQuizFromSupabase(slug) {
 
     state.page = 0;
     state.loaded = true;
+    await fetchQuizArchive();
     render();
   } catch (err) {
     app.innerHTML = `<div class="error">Error loading quiz: ${err.message}</div>`;
@@ -105,10 +111,10 @@ async function onNewQuiz() {
     loaded: false,
     answers: [],
   };
+  await fetchQuizArchive();
   render();
 }
 
-// Always INSERT: creates new row, new quiz_slug, new URL
 async function saveQuizToSupabase(quizObj) {
   const titleInput = $("#quizTitleInput");
   QUIZ_TITLE = titleInput ? titleInput.value : QUIZ_TITLE;
@@ -146,6 +152,7 @@ async function saveQuizToSupabase(quizObj) {
     QUIZ_URL = quizRow
       ? generateQuizUrl(quizRow.quiz_slug)
       : "unknown";
+    await fetchQuizArchive(); // refresh archive after insert
     render();
     // Focus and select the URL for easy copying
     setTimeout(() => {
@@ -158,6 +165,37 @@ async function saveQuizToSupabase(quizObj) {
     }, 200);
     alert("Quiz saved as: " + QUIZ_SLUG + " (" + QUIZ_TITLE + ")\nURL: " + QUIZ_URL);
   }
+}
+
+function renderQuizArchive() {
+  if (!quizArchive.length) return `<div>No quizzes found.</div>`;
+  return `
+    <div style="margin-top:30px;">
+      <h2 style="margin-bottom:8px;color:#4682b4;">Quiz Archive</h2>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:#eaf4fc;">
+            <th style="text-align:left;padding:6px;">Quiz #</th>
+            <th style="text-align:left;padding:6px;">Title</th>
+            <th style="text-align:left;padding:6px;">URL</th>
+          </tr>
+        </thead>
+        <tbody>
+        ${quizArchive.map(q => `
+          <tr>
+            <td style="padding:6px;">${q.quiz_slug}</td>
+            <td style="padding:6px;">${q.title||''}</td>
+            <td style="padding:6px;">
+              <input type="text" value="${generateQuizUrl(q.quiz_slug)}" readonly style="width:80%;">
+              <button onclick="navigator.clipboard.writeText('${generateQuizUrl(q.quiz_slug)}')">Copy</button>
+              <a href="${generateQuizUrl(q.quiz_slug)}" target="_blank" style="margin-left:12px;">Open</a>
+            </td>
+          </tr>
+        `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function render() {
@@ -174,6 +212,7 @@ function render() {
       </div>
       <button id="newQuizBtn" style="margin-right:12px;">New Quiz</button>
       <button id="saveQuizBtn">Save Quiz</button>
+      ${renderQuizArchive()}
     </div>
   `;
   $("#newQuizBtn")?.addEventListener("click", onNewQuiz);
@@ -192,5 +231,8 @@ function render() {
   });
 }
 
-// Initial load: load the first quiz (optional)
-loadQuizFromSupabase("quiz.01");
+// Initial load: get archive and load the first quiz
+(async () => {
+  await fetchQuizArchive();
+  loadQuizFromSupabase("quiz.01");
+})();
