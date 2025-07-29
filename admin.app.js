@@ -375,24 +375,15 @@ async function renderApp() {
       }
     }, 100);
 
-    // === MOVE ARCHIVE TO BOTTOM ===
+    // Render quiz archive BELOW the editor/app
     const archiveDiv = document.getElementById('quiz-archive-wrap');
-    if (archiveDiv) {
-      archiveDiv.innerHTML = await renderQuizArchive();
-      archiveDiv.style.marginTop = "40px";
-      archiveDiv.style.paddingTop = "12px";
-      archiveDiv.style.borderTop = "2px solid #ededef";
-      archiveDiv.style.width = "100%";
-      archiveDiv.style.background = "#fff";
-      archiveDiv.style.display = "block";
-    }
+    if (archiveDiv) archiveDiv.innerHTML = await renderQuizArchive();
   } catch(e) {
     showFatalError("Render error: " + e.message);
   }
 }
 
 // ========== Block/Page/Quiz Control Logic ==========
-// ...rest of your unchanged control/event logic here...
 
 window.onAddAnswerBlock = function(letter) {
   let coords = {
@@ -419,7 +410,268 @@ window.onAddAnswerBlock = function(letter) {
   saveQuizzes();
   renderApp();
 };
-// ...continue unchanged...
+window.onRemoveBlockSidebar = function() {
+  if (selectedBlockIdx < 0) return;
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks.splice(selectedBlockIdx,1);
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onAddBlock = function(type) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let tpl = BLOCK_TYPES.find(b => b.type===type);
+  if (!tpl) return;
+  page.blocks = page.blocks||[];
+  page.blocks.push({
+    type: tpl.type,
+    label: tpl.label,
+    text: "",
+    x: tpl.x, y: tpl.y,
+    w: tpl.w, h: tpl.h,
+    size: tpl.size,
+    color: tpl.color,
+    align: tpl.align,
+    maxlen: tpl.maxlen
+  });
+  selectedBlockIdx = page.blocks.length-1;
+  saveQuizzes();
+  renderApp();
+};
+window.onRemoveAllBlocks = function() {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks = [];
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onSelectBlock = function(idx) {
+  selectedBlockIdx = idx;
+  renderApp();
+};
+window.onBlockAlign = function(idx, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let b = page.blocks[idx];
+  b.align = val;
+  saveQuizzes();
+  renderApp();
+};
+window.onBlockTextInput = function(bi, el) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  let b = page.blocks[bi];
+  let text = el.innerText.replace(/\u200B/g, '');
+  if (b.maxlen) text = text.slice(0, b.maxlen);
+  b.text = text;
+  setTimeout(()=>{
+    let canvas = document.getElementById("editor-canvas");
+    if (!canvas) return;
+    let blockEls = canvas.querySelectorAll('.text-block');
+    let contentEl = blockEls[bi]?.querySelector('.block-content');
+    if (contentEl) {
+      contentEl.style.height = "auto";
+      let box = contentEl.getBoundingClientRect();
+      let h = Math.max(b.h, box.height + 8);
+      b.h = Math.min(h, CANVAS_H - b.y);
+      saveQuizzes();
+      renderApp();
+    }
+  }, 10);
+  saveQuizzes();
+};
+window.onBlockFontSize = function(bi, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi].size = parseInt(val)||18;
+  saveQuizzes();
+  renderApp();
+};
+window.onBlockColor = function(bi, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi].color = val;
+  saveQuizzes();
+  renderApp();
+};
+window.onBlockPos = function(bi, prop, val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.blocks[bi][prop] = parseInt(val)||0;
+  saveQuizzes();
+  renderApp();
+};
+
+window.onQuizTitleChange = function(val) {
+  quizzes[currentQuizIdx].title = val;
+  saveQuizzes();
+};
+window.onPrevPage = function() {
+  if (selectedPageIdx > 0) {
+    selectedPageIdx--; selectedBlockIdx = -1; renderApp();
+  }
+}
+window.onNextPage = function() {
+  let quiz = quizzes[currentQuizIdx];
+  if (selectedPageIdx < quiz.pages.length-1) {
+    selectedPageIdx++; selectedBlockIdx = -1; renderApp();
+  }
+}
+window.onSavePage = function() {
+  saveQuizzes();
+  alert("Page saved!");
+}
+
+window.onSaveQuiz = async function() {
+  const statusDiv = document.getElementById("supabase-status");
+  if (statusDiv) statusDiv.textContent = '';
+  let qz = quizzes[currentQuizIdx];
+
+  let quiz_slug = qz.id;
+  let quiz_url = `https://anica-blip.github.io/3c-quiz/${quiz_slug}`;
+  let dbQuiz = {
+    quiz_slug,
+    quiz_url,
+    title: qz.title,
+    pages: qz.pages // store all quiz pages/blocks here, as JSON
+  };
+
+  if (!supabaseClient) {
+    showFatalError("Supabase client not loaded yet, please reload and try again.");
+    return;
+  }
+
+  let { error } = await supabaseClient
+    .from('quizzes')
+    .upsert([dbQuiz], { onConflict: "quiz_slug" });
+
+  if (error) {
+    if (statusDiv) {
+      statusDiv.style.color = "#c00";
+      statusDiv.textContent = "❌ Error saving quiz: " + error.message;
+    }
+    alert("Supabase save failed: " + error.message);
+  } else {
+    if (statusDiv) {
+      statusDiv.style.color = "#0a0";
+      statusDiv.textContent = "✅ Quiz saved to Supabase!";
+    }
+    alert("Quiz saved to Supabase!");
+    await renderApp(); // Refresh archive after save
+  }
+};
+
+window.onExportQuiz = function() {
+  let qz = quizzes[currentQuizIdx];
+  let data = JSON.stringify(qz, null, 2);
+  let blob = new Blob([data], {type: "application/json"});
+  let url = URL.createObjectURL(blob);
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = `${qz.id}.json`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 500);
+};
+window.onImportQuiz = function() {
+  let inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = ".json,application/json";
+  inp.onchange = e => {
+    let file = inp.files[0];
+    let reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        let data = JSON.parse(ev.target.result);
+        if (data && data.id && data.pages) {
+          quizzes.push(data);
+          currentQuizIdx = quizzes.length-1;
+          selectedPageIdx = 0;
+          selectedBlockIdx = -1;
+          saveQuizzes();
+          renderApp();
+        } else {
+          alert("Invalid quiz file.");
+        }
+      } catch {
+        alert("Import failed.");
+      }
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+};
+
+window.onSelectPage = function(idx) {
+  selectedPageIdx = idx;
+  selectedBlockIdx = -1;
+  renderApp();
+};
+window.onMovePageUpSingle = function(idx) {
+  if (idx <= 0) return;
+  let quiz = quizzes[currentQuizIdx];
+  let pages = quiz.pages;
+  [pages[idx-1], pages[idx]] = [pages[idx], pages[idx-1]];
+  selectedPageIdx = idx-1;
+  saveQuizzes();
+  renderApp();
+};
+window.onMovePageDownSingle = function(idx) {
+  let quiz = quizzes[currentQuizIdx];
+  let pages = quiz.pages;
+  if (idx >= pages.length-1) return;
+  [pages[idx+1], pages[idx]] = [pages[idx], pages[idx+1]];
+  selectedPageIdx = idx+1;
+  saveQuizzes();
+  renderApp();
+};
+window.onRemovePage = function(idx) {
+  let quiz = quizzes[currentQuizIdx];
+  quiz.pages.splice(idx, 1);
+  if (selectedPageIdx >= quiz.pages.length) selectedPageIdx = quiz.pages.length-1;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onAddPage = function() {
+  let quiz = quizzes[currentQuizIdx];
+  quiz.pages = quiz.pages || [];
+  quiz.pages.push({ bg: "", blocks: [] });
+  selectedPageIdx = quiz.pages.length-1;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onDuplicatePage = function() {
+  let quiz = quizzes[currentQuizIdx];
+  let page = quiz.pages[selectedPageIdx];
+  if (!page) return;
+  let copy = JSON.parse(JSON.stringify(page));
+  quiz.pages.splice(selectedPageIdx+1, 0, copy);
+  selectedPageIdx = selectedPageIdx+1;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onNewQuizTab = async function() {
+  // Generate a new quiz ID based on Supabase to avoid collision
+  const id = await newQuizId();
+  const newQuiz = Object.assign(blankQuiz(), {id});
+  quizzes.push(newQuiz);
+  currentQuizIdx = quizzes.length-1;
+  selectedPageIdx = 0;
+  selectedBlockIdx = -1;
+  saveQuizzes();
+  renderApp();
+};
+window.onBgChange = function(val) {
+  let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+  page.bg = val;
+  saveQuizzes();
+  renderApp();
+};
+window.onPickBg = function() {
+  let val = prompt(`Enter background image filename (in static/):\nCurrent: ${quizzes[currentQuizIdx].pages[selectedPageIdx].bg}`);
+  if (val) {
+    quizzes[currentQuizIdx].pages[selectedPageIdx].bg = val.startsWith('static/') ? val : "static/" + val.replace(/^static\//,'');
+    saveQuizzes();
+    renderApp();
+  }
+};
 
 // ========== Initialization ==========
 
