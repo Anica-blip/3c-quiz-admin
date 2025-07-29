@@ -147,13 +147,15 @@ async function saveQuizToSupabase(quizObj) {
       ? generateQuizUrl(quizRow.quiz_slug)
       : "unknown";
     render();
+    // Focus and select the URL for easy copying
     setTimeout(() => {
-      const urlBlock = $("#quizUrlBlock");
-      if (urlBlock) {
-        urlBlock.style.display = "block";
-        urlBlock.querySelector("#quizUrlCopyField").value = QUIZ_URL;
+      const urlField = $("#quizUrlCopyField");
+      if (urlField) {
+        urlField.value = QUIZ_URL;
+        urlField.focus();
+        urlField.select();
       }
-    }, 100);
+    }, 200);
     alert("Quiz saved as: " + QUIZ_SLUG + " (" + QUIZ_TITLE + ")\nURL: " + QUIZ_URL);
   }
 }
@@ -163,24 +165,29 @@ function render() {
     <div>
       <label for="quizTitleInput">Quiz Title:</label>
       <input type="text" id="quizTitleInput" value="${QUIZ_TITLE}" placeholder="Enter quiz title">
-      <div>Quiz Editor for ${QUIZ_SLUG || "[new quiz]"}</div>
-      <div id="quizUrlBlock" style="display:${QUIZ_URL ? 'block' : 'none'};margin:10px 0;padding:10px;border:1px solid #ccc;background:#f9f9f9;">
-        <strong>Quiz URL:</strong>
-        <input type="text" id="quizUrlCopyField" value="${QUIZ_URL}" readonly style="width:80%;">
-        <button id="copyQuizUrlBtn" style="margin-left:10px;">Copy URL</button>
+      <div>Quiz Editor for ${QUIZ_SLUG || "[new quiz]"} <span style="font-size:smaller;color:#aaa;">(slug: ${QUIZ_SLUG || ""})</span></div>
+      <div id="quizUrlBlock" style="margin:14px 0;padding:12px;border:2px solid #4682b4;border-radius:8px;background:#f3f8ff;">
+        <strong style="display:block;font-size:1.1em;margin-bottom:8px;">Quiz URL for sharing:</strong>
+        <input type="text" id="quizUrlCopyField" value="${QUIZ_URL}" readonly style="width:75%;font-size:1em;padding:6px;">
+        <button id="copyQuizUrlBtn" style="margin-left:12px;padding:5px 14px;">Copy URL</button>
+        <span id="quizUrlCopiedMsg" style="margin-left:8px;color:green;display:none;">Copied!</span>
       </div>
-      <button id="newQuizBtn">New Quiz</button>
+      <button id="newQuizBtn" style="margin-right:12px;">New Quiz</button>
       <button id="saveQuizBtn">Save Quiz</button>
     </div>
   `;
   $("#newQuizBtn")?.addEventListener("click", onNewQuiz);
   $("#saveQuizBtn")?.addEventListener("click", () => saveQuizToSupabase(quizData));
-  // Copy URL functionality
   $("#copyQuizUrlBtn")?.addEventListener("click", () => {
     const urlField = $("#quizUrlCopyField");
     if (urlField) {
       urlField.select();
       document.execCommand('copy');
+      const msg = $("#quizUrlCopiedMsg");
+      if (msg) {
+        msg.style.display = 'inline';
+        setTimeout(() => { msg.style.display = 'none'; }, 1100);
+      }
     }
   });
 }
