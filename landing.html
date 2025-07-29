@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title id="pageTitle">Quiz Landing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Social Sharing Meta (Open Graph & Twitter) -->
+  <meta property="og:title" content="" id="ogTitle">
+  <meta property="og:description" content="" id="ogDesc">
+  <meta property="og:image" content="" id="ogImage">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="" id="twTitle">
+  <meta name="twitter:description" content="" id="twDesc">
+  <meta name="twitter:image" content="" id="twImage">
+  <link rel="stylesheet" href="landing.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', Arial, sans-serif;
+      background: #f8fafc;
+      color: #222;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .landing-container {
+      max-width: 370px;
+      width: 96vw;
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 6px 28px rgba(0,0,0,0.09);
+      padding: 20px 16px 28px 16px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .cover-img {
+      width: 120px;
+      height: 120px;
+      border-radius: 12px;
+      margin: 0 auto 18px auto;
+      object-fit: cover;
+      background: #eaf4fc;
+      display: block;
+    }
+    .quiz-title {
+      font-size: 1.35em;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 10px;
+      margin-top: 4px;
+    }
+    .quiz-desc {
+      font-size: 1.07em;
+      color: #444;
+      text-align: center;
+      margin-bottom: 16px;
+      white-space: pre-line;
+    }
+    .start-btn {
+      display: block;
+      width: 100%;
+      padding: 12px 0;
+      background: linear-gradient(90deg,#4682b4 40%,#7ec8e3 100%);
+      color: #fff;
+      font-size: 1.14em;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      margin-top: 8px;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(70,130,180,0.12);
+      transition: background 0.18s;
+    }
+    .start-btn:hover, .start-btn:focus {
+      background: linear-gradient(90deg,#386b8c 40%,#4682b4 100%);
+    }
+    .loading {
+      text-align: center;
+      font-size: 1.2em;
+      color: #4682b4;
+      padding: 40px 0;
+    }
+    .error {
+      text-align: center;
+      color: #c00;
+      font-size: 1.1em;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div class="landing-container" id="landing">
+    <div class="loading" id="loadingMsg">Loading quiz...</div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script>
+    // ---- CONFIG ----
+    const SUPABASE_URL = "https://cgxjqsbrditbteqhdyus.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNneGpxc2JyZGl0YnRlcWhkeXVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExMTY1ODEsImV4cCI6MjA2NjY5MjU4MX0.xUDy5ic-r52kmRtocdcW8Np9-lczjMZ6YKPXc03rIG4";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function qs(param) {
+      const params = new URLSearchParams(window.location.search);
+      return params.get(param);
+    }
+
+    async function loadQuizLanding(slug) {
+      const landing = document.getElementById('landing');
+      const loadingMsg = document.getElementById('loadingMsg');
+      if (!slug) {
+        loadingMsg.innerText = "No quiz specified.";
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('quizzes')
+          .select('*')
+          .eq('quiz_slug', slug)
+          .single();
+        if (error || !data) throw new Error("Quiz not found.");
+
+        // Parse pages JSON if needed
+        let pages = data.pages;
+        if (typeof pages === "string") {
+          try { pages = JSON.parse(pages); } catch(e) { pages = []; }
+        }
+        // Cover image: always use 1.png (as requested)
+        const coverImg = "static/1.png";
+        // Title
+        const quizTitle = data.title || "Untitled Quiz";
+        // Description (try intro page blocks, fallback to data.description)
+        let quizDesc = "";
+        if (pages[1] && Array.isArray(pages[1].blocks)) {
+          const descBlock = pages[1].blocks.find(b => b.type === "desc" || (b.label && b.label.toLowerCase().includes("desc")));
+          quizDesc = descBlock ? descBlock.text : "";
+        }
+        if (!quizDesc) quizDesc = data.description || "";
+
+        // Quiz loader link
+        const quizLoaderUrl = `quiz.html?quizUrl=${encodeURIComponent(slug)}`;
+
+        // Social meta tags
+        document.getElementById("pageTitle").innerText = quizTitle;
+        document.getElementById("ogTitle").setAttribute("content", quizTitle);
+        document.getElementById("ogDesc").setAttribute("content", quizDesc);
+        document.getElementById("ogImage").setAttribute("content", coverImg);
+        document.getElementById("twTitle").setAttribute("content", quizTitle);
+        document.getElementById("twDesc").setAttribute("content", quizDesc);
+        document.getElementById("twImage").setAttribute("content", coverImg);
+
+        // Render
+        landing.innerHTML = `
+          <img class="cover-img" src="${coverImg}" alt="Quiz cover"/>
+          <div class="quiz-title">${quizTitle}</div>
+          <div class="quiz-desc">${quizDesc}</div>
+          <button class="start-btn" id="startBtn">Start Quiz</button>
+        `;
+        document.getElementById("startBtn").onclick = () => {
+          window.location.href = quizLoaderUrl;
+        };
+
+      } catch (err) {
+        landing.innerHTML = `<div class="error">Error loading quiz: ${err.message}</div>`;
+      }
+    }
+
+    window.onload = () => {
+      // Use ?quiz=quiz.01 in URL
+      const slug = qs("quiz") || "quiz.01";
+      loadQuizLanding(slug);
+    };
+  </script>
+</body>
+</html>
