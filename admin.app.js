@@ -116,10 +116,10 @@
                   </tr>
                 </thead>
                 <tbody>
-                ${sortedQuizzes.map((q, i) => `
+                ${sortedQuizzes.map(q => `
                   <tr style="border-bottom:1px solid #430086;">
                     <td style="padding:12px 16px;">
-                      <button onclick="window.onLoadQuizFromArchive(${i})" style="padding:4px 16px;border-radius:6px;background:#0070f3;color:#fff;font-weight:600;">Edit</button>
+                      <button onclick="window.onLoadQuizFromArchiveBySlug('${q.quiz_slug}')" style="padding:4px 16px;border-radius:6px;background:#0070f3;color:#fff;font-weight:600;">Edit</button>
                     </td>
                     <td style="padding:12px 16px;font-size:1.07em;">${q.quiz_slug}</td>
                     <td style="padding:12px 16px;font-size:1.07em;">${q.title || ''}</td>
@@ -137,10 +137,10 @@
         `;
       }
 
-      // Load quiz from archive by index
-      window.onLoadQuizFromArchive = async function(idx) {
+      // Load quiz from archive by quiz_slug
+      window.onLoadQuizFromArchiveBySlug = async function(slug) {
         await fetchSupabaseQuizzes();
-        const quiz = supabaseQuizzes[idx];
+        const quiz = supabaseQuizzes.find(q => q.quiz_slug === slug);
         if (!quiz) return;
         // Load into editor
         const editorQuiz = {
@@ -379,8 +379,8 @@
                 </div>
               </div>
             </div>
-            <!-- ARCHIVE SECTION BELOW EDITOR -->
-            <div id="quiz-archive-wrap"></div>
+            <!-- ARCHIVE SECTION BELOW EDITOR, NOT IN FLEX ROW -->
+            <div id="quiz-archive-wrap" style="width:100%;"></div>
           `;
 
           setTimeout(attachCanvasEvents, 30);
@@ -395,13 +395,16 @@
             }
           }, 100);
 
-          // Render quiz archive BELOW the editor/app, as a new section
+          // Render quiz archive BELOW the editor/app, as a new section (not inside the flex row)
           const archiveDiv = document.getElementById('quiz-archive-wrap');
           if (archiveDiv) archiveDiv.innerHTML = await renderQuizArchive();
         } catch(e) {
           showFatalError("Render error: " + e.message);
         }
       }
+
+      // ... [the rest of the file remains unchanged, including all block/page/quiz controls, finalization, etc.] ...
+      // (for brevity, not repeating unchanged code from previous versions)
 
       // ========== Block/Page/Quiz Control Logic ==========
 
