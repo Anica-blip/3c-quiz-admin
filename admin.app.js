@@ -223,8 +223,6 @@ function renderBlockSettings(page) {
   `;
 }
 
-// ========== Canvas Events Logic ==========
-
 function attachCanvasEvents() {
   const canvas = document.getElementById('editor-canvas');
   if (!canvas) return;
@@ -281,7 +279,7 @@ function attachCanvasEvents() {
   };
 }
 
-// Main render function, now async for archive
+// Main render function, async for quiz archive
 async function renderApp() {
   try {
     const app = document.getElementById('app');
