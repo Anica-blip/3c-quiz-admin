@@ -81,31 +81,38 @@
         return `quiz.${String(n).padStart(2,'0')}`;
       }
 
-      // Render quiz archive table from Supabase data, with Edit button
+      // Render quiz archive table from Supabase data, with Edit button, sorted by quiz number ascending
       async function renderQuizArchive() {
         await fetchSupabaseQuizzes();
         if (!supabaseQuizzes.length) return `<div>No quizzes found in Supabase.</div>`;
+
+        // Sort by quiz number ascending (01, 02, 03...)
+        const sortedQuizzes = [...supabaseQuizzes].sort((a, b) => {
+          const getNum = q => parseInt((q.quiz_slug.match(/\.(\d+)$/) || [])[1] || 0);
+          return getNum(a) - getNum(b);
+        });
+
         return `
-          <div style="margin-top:40px;padding-top:12px;border-top:2px solid #ededef;">
+          <section id="quiz-archive-section" style="margin-top:40px;padding-top:12px;border-top:2px solid #ededef;">
             <h2 style="margin-top:0;">Quiz Archive</h2>
             <table style="width:100%;border-collapse:collapse;">
               <thead>
                 <tr>
-                  <th>Edit</th>
-                  <th>Quiz #</th>
-                  <th>Title</th>
-                  <th>URL</th>
+                  <th style="text-align:left;padding:6px 8px;">Edit</th>
+                  <th style="text-align:left;padding:6px 8px;">Quiz #</th>
+                  <th style="text-align:left;padding:6px 8px;">Title</th>
+                  <th style="text-align:left;padding:6px 8px;">URL</th>
                 </tr>
               </thead>
               <tbody>
-              ${supabaseQuizzes.map((q, i) => `
+              ${sortedQuizzes.map((q, i) => `
                 <tr>
-                  <td>
+                  <td style="padding:6px 8px;">
                     <button onclick="window.onLoadQuizFromArchive(${i})" style="padding:2px 10px;border-radius:4px;background:#0070f3;color:#fff;">Edit</button>
                   </td>
-                  <td>${q.quiz_slug}</td>
-                  <td>${q.title || ''}</td>
-                  <td>
+                  <td style="padding:6px 8px;">${q.quiz_slug}</td>
+                  <td style="padding:6px 8px;">${q.title || ''}</td>
+                  <td style="padding:6px 8px;">
                     <input type="text" value="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" readonly style="width:70%;">
                     <button onclick="navigator.clipboard.writeText('https://anica-blip.github.io/3c-quiz/${q.quiz_slug}')">Copy</button>
                     <a href="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" target="_blank">Open</a>
@@ -114,7 +121,7 @@
               `).join('')}
               </tbody>
             </table>
-          </div>
+          </section>
         `;
       }
 
@@ -361,10 +368,9 @@
               </div>
             </div>
             <!-- ARCHIVE SECTION BELOW EDITOR -->
-            <section id="quiz-archive-section">
-              <div id="quiz-archive-wrap"></div>
-            </section>
+            <div id="quiz-archive-wrap"></div>
           `;
+
           setTimeout(attachCanvasEvents, 30);
           setTimeout(()=>{
             if (selectedBlockIdx >= 0) {
