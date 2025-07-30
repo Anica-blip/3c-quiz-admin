@@ -38,9 +38,9 @@ async function generateNextQuizSlug() {
   return `quiz.${String(nextNum).padStart(2, '0')}`;
 }
 
+// The correct URL for sharing/landing page
 function generateQuizUrl(slug) {
-  // CHANGE THIS TO YOUR ACTUAL QUIZ VIEWER ROUTE!
-  return `https://your-site.com/quiz/${slug}`;
+  return `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${slug}`;
 }
 
 async function loadQuizFromSupabase(slug) {
@@ -103,16 +103,17 @@ async function saveQuizToSupabase(quizObj) {
   const titleInput = $("#quizTitleInput");
   QUIZ_TITLE = titleInput ? titleInput.value : QUIZ_TITLE;
 
-  // Build payload to save: quiz_slug, title, pages
+  // Build payload to save: quiz_slug, title, pages, quiz_url
   const payload = {
     quiz_slug: QUIZ_SLUG,
+    quiz_url: generateQuizUrl(QUIZ_SLUG), // always correct landing.html URL!
     title: QUIZ_TITLE,
     pages: JSON.stringify(quizObj.pages),
   };
 
   const { data, error } = await supabase
     .from('quizzes')
-    .upsert([payload]) // use upsert for update/insert
+    .upsert([payload], { onConflict: 'quiz_slug' }) // use upsert for update/insert
     .select();
 
   if (error) {
