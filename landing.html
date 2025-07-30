@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Quiz Landing</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <style>
     body {
       margin: 0;
@@ -82,12 +83,8 @@
       const params = new URLSearchParams(window.location.search);
       return params.get(param);
     }
-
-    // When Start button is clicked, pass the quiz URL to the app loader
     document.getElementById('startBtn').onclick = function() {
-      // Get quiz URL parameter
-      const quizSlug = qs("quiz") || "quiz.01"; // Default to quiz.01 if not present
-      // Redirect to the app loader with the quiz slug
+      const quizSlug = qs("quiz") || "quiz.01";
       window.location.href = `https://anica-blip.github.io/3c-quiz/?quizUrl=${encodeURIComponent(quizSlug)}`;
     }
   </script>
