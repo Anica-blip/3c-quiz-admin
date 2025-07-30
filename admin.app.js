@@ -534,6 +534,7 @@
         let qz = quizzes[currentQuizIdx];
 
         let quiz_slug = qz.id;
+        // Always use the correct landing.html URL
         let quiz_url = `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${quiz_slug}`;
         let dbQuiz = {
           quiz_slug,
@@ -547,6 +548,7 @@
           return;
         }
 
+        // Always overwrite (upsert) the quiz entry in Supabase
         let { error } = await supabaseClient
           .from('quizzes')
           .upsert([dbQuiz], { onConflict: "quiz_slug" });
@@ -752,7 +754,7 @@
         showFatalError('Unhandled promise rejection: ' + (event.reason?.message || event.reason));
       });
 
-      window.QuizAdminVersion = "v3.0.0";
+      window.QuizAdminVersion = "v3.1.0";
 
       // Final log
       console.log("3c-quiz-admin loaded and ready.");
