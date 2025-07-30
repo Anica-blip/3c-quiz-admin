@@ -48,7 +48,7 @@
       async function fetchSupabaseQuizzes() {
         const { data, error } = await supabaseClient
           .from('quizzes')
-          .select('quiz_slug, title, pages');
+          .select('quiz_slug, quiz_url, title, pages');
         supabaseQuizzes = data || [];
         return supabaseQuizzes;
       }
@@ -115,9 +115,9 @@
                     <td style="padding:12px 16px;font-size:1.07em;">${q.quiz_slug}</td>
                     <td style="padding:12px 16px;font-size:1.07em;">${q.title || ''}</td>
                     <td style="padding:12px 16px;">
-                      <input type="text" value="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" readonly style="width:70%;background:#eee;color:#222;border:none;border-radius:6px;padding:4px;">
-                      <button onclick="navigator.clipboard.writeText('https://anica-blip.github.io/3c-quiz/${q.quiz_slug}')" style="margin-left:6px;padding:4px 12px;border-radius:4px;background:#fff;color:#540099;font-weight:700;">Copy</button>
-                      <a href="https://anica-blip.github.io/3c-quiz/${q.quiz_slug}" target="_blank" style="margin-left:10px;color:#ffe;font-weight:700;">Open</a>
+                      <input type="text" value="${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}" readonly style="width:70%;background:#eee;color:#222;border:none;border-radius:6px;padding:4px;">
+                      <button onclick="navigator.clipboard.writeText('${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}')" style="margin-left:6px;padding:4px 12px;border-radius:4px;background:#fff;color:#540099;font-weight:700;">Copy</button>
+                      <a href="${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}" target="_blank" style="margin-left:10px;color:#ffe;font-weight:700;">Open</a>
                     </td>
                   </tr>
                 `).join('')}
@@ -534,7 +534,7 @@
         let qz = quizzes[currentQuizIdx];
 
         let quiz_slug = qz.id;
-        let quiz_url = `https://anica-blip.github.io/3c-quiz/${quiz_slug}`;
+        let quiz_url = `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${quiz_slug}`;
         let dbQuiz = {
           quiz_slug,
           quiz_url,
