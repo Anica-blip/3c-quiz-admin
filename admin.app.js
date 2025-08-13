@@ -39,8 +39,8 @@
           "title": { w: 275, h: 60, x: 42, y: 214 },
           "desc": { w: 275, h: 186, x: 42, y: 283 }
         },
-        // 2a.png to 2h.png - Quiz pages
-        "2a": {
+        // 3a.png to 3h.png - Quiz pages
+        "3a": {
           "question": { w: 294, h: 60, x: 31, y: 109 },
           "answerA": { w: 294, h: 60, x: 31, y: 180 },
           "answerB": { w: 294, h: 60, x: 31, y: 248 },
@@ -74,9 +74,9 @@
           return COORDINATE_PRESETS[filename][blockType];
         }
         
-        // Check for pattern matches (2a-2h, 5a-5d)
-        if (filename.match(/^2[a-h]$/)) {
-          return COORDINATE_PRESETS["2a"][blockType];
+        // Check for pattern matches (3a-3h, 5a-5d)
+        if (filename.match(/^3[a-h]$/)) {
+          return COORDINATE_PRESETS["3a"][blockType];
         }
         if (filename.match(/^5[a-d]$/)) {
           return COORDINATE_PRESETS["5a"][blockType];
