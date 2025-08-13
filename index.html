@@ -1,15 +1,35 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quiz Admin Editor</title>
   <link rel="stylesheet" href="admin.css">
   <!-- Supabase JS client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <style>
+    /* Additional text direction fixes */
+    * {
+      direction: ltr !important;
+      text-align: left;
+    }
+    input[type="text"], textarea, [contenteditable] {
+      direction: ltr !important;
+      text-align: left !important;
+      unicode-bidi: normal !important;
+    }
+    /* Ensure proper text input behavior */
+    .text-block .block-content {
+      direction: ltr !important;
+      text-align: left !important;
+      unicode-bidi: normal !important;
+      writing-mode: horizontal-tb !important;
+    }
+  </style>
 </head>
-<body>
+<body dir="ltr">
   <!-- Main application container: used by admin.app.js -->
-  <div id="app"></div>
+  <div id="app" dir="ltr"></div>
   <!-- Fatal error display, only shown if JS can't render UI -->
   <div id="fatal-error" style="display:none;color:#c00;font-size:1.2em;margin:32px;"></div>
   <script>
@@ -19,8 +39,46 @@
       document.getElementById('fatal-error').style.display = "block";
       throw new Error("Fatal Error: #app container not found in HTML.");
     }
+    
+    // Force LTR direction globally
+    document.documentElement.setAttribute('dir', 'ltr');
+    document.body.setAttribute('dir', 'ltr');
+    
+    // Additional text direction enforcement
+    document.addEventListener('DOMContentLoaded', function() {
+      // Force all input elements to be LTR
+      const styleSheet = document.createElement('style');
+      styleSheet.textContent = `
+        input, textarea, [contenteditable="true"] {
+          direction: ltr !important;
+          text-align: left !important;
+          unicode-bidi: normal !important;
+        }
+        .text-block .block-content {
+          direction: ltr !important;
+          text-align: left !important;
+        }
+      `;
+      document.head.appendChild(styleSheet);
+    });
+    
+    // Override any RTL behavior
+    document.addEventListener('keydown', function(e) {
+      if (e.target.contentEditable === 'true' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        e.target.style.direction = 'ltr';
+        e.target.style.textAlign = 'left';
+      }
+    });
+    
+    document.addEventListener('input', function(e) {
+      if (e.target.contentEditable === 'true' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        e.target.style.direction = 'ltr';
+        e.target.style.textAlign = 'left';
+      }
+    });
   </script>
   <!-- Admin app logic should reference #app and handle quiz numbering via Supabase -->
   <script src="admin.app.js"></script>
 </body>
 </html>
+
