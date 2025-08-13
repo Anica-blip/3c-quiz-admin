@@ -50,26 +50,73 @@ body {
   align-items: center;
   gap: 5px;
 }
-.page-list button {
-  border: none;
-  background: none;
-  color: #0057ff;
-  font-size: 1em;
+
+/* FIXED: Better page button styling with clear active state */
+.page-list .page-button {
+  border: 2px solid #ddd;
+  background: #fff;
+  color: #333;
+  font-size: 0.9em;
   cursor: pointer;
   text-align: left;
-  padding: 0 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+  max-width: 120px;
+  overflow: hidden;
+}
+
+.page-list .page-button:hover {
+  border-color: #0057ff;
+  background: #f0f7ff;
+}
+
+.page-list .page-button.active {
+  background: #0057ff !important;
+  color: #fff !important;
+  border-color: #0057ff !important;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0,87,255,0.3);
+}
+
+.page-list .page-button.active .img-filename {
+  color: #fff !important;
+}
+
+.page-list button {
+  border: none;
+  background: #ddd;
+  color: #666;
+  font-size: 0.8em;
+  cursor: pointer;
+  text-align: center;
+  padding: 4px 6px;
   border-radius: 4px;
   transition: background 0.14s;
 }
-.page-list button.active {
-  background: #0057ff;
-  color: #fff;
+
+.page-list button:hover:not(.page-button) {
+  background: #bbb;
 }
+
+.page-list button:disabled {
+  background: #eee;
+  color: #999;
+  cursor: not-allowed;
+}
+
 .page-list .img-filename {
-  font-size: 0.95em;
-  color: #222;
-  margin-left: 2px;
+  font-size: 0.85em;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
 .page-actions {
   margin-top: 5px;
   display: flex;
@@ -189,6 +236,23 @@ body {
   pointer-events: none;
   opacity: 0.65;
 }
+
+/* FIXED: Add resize handle styling */
+.text-block .resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  background: #0057ff;
+  cursor: nw-resize;
+  opacity: 0.7;
+}
+
+.text-block .resize-handle:hover {
+  opacity: 1;
+}
+
 .block-settings {
   margin: 8px 0;
   display: flex;
@@ -226,9 +290,15 @@ button.danger {
   object-fit: cover;
   border-radius: 5px;
   border: 1.5px solid #ddd;
-  margin-right: 4px;
+  flex-shrink: 0;
   vertical-align: middle;
 }
+
+/* FIXED: Hide broken images gracefully */
+.page-img-thumb[src=""], .page-img-thumb:not([src]) {
+  display: none;
+}
+
 @media (max-width: 950px) {
   #app {
     max-width: 100vw;
@@ -250,5 +320,10 @@ button.danger {
   }
   .mainpanel {
     padding: 0;
+  }
+  
+  .page-list .page-button {
+    min-width: 80px;
+    max-width: 80px;
   }
 }
