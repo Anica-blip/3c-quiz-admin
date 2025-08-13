@@ -199,6 +199,7 @@
         selectedPageIdx = 0;
         selectedBlockIdx = -1;
         saveQuizzes();
+        renderApp();
       };
 
       window.onBlockFontSize = function(bi, val) {
@@ -396,90 +397,6 @@
           saveQuizzes();
           renderApp();
         }
-      };
-
-      // Initialization logic to start up the editor and archive
-      (async function init() {
-        quizzes = loadLocalQuizzes();
-        if (quizzes.length === 0) {
-          const id = await newQuizId();
-          quizzes.push(Object.assign(blankQuiz(), {id}));
-        }
-        await renderApp();
-      })();
-
-      // ========== Finalization and Utilities ==========
-
-      window.onerror = function(message, source, lineno, colno, error) {
-        showFatalError(`Global error: ${message} at ${source}:${lineno}:${colno}`);
-      };
-
-      function deepCopy(obj) {
-        return JSON.parse(JSON.stringify(obj));
-      }
-
-      window.clearApp = function() {
-        quizzes = [];
-        currentQuizIdx = 0;
-        selectedPageIdx = 0;
-        selectedBlockIdx = -1;
-        localStorage.removeItem('3c-quiz-admin-quizzes-v3');
-        renderApp();
-      };
-
-      window.onbeforeunload = function() {
-        saveQuizzes();
-      };
-
-      window._3cQuizAdmin = {
-        quizzes,
-        supabaseQuizzes,
-        currentQuizIdx,
-        selectedPageIdx,
-        selectedBlockIdx
-      };
-
-      window.reloadQuizAdmin = function() {
-        window.location.reload();
-      };
-
-      window.QuizAdminAPI = {
-        getQuizzes: () => quizzes,
-        getCurrentQuiz: () => quizzes[currentQuizIdx],
-        getQuizArchive: () => supabaseQuizzes,
-        reload: () => renderApp()
-      };
-
-      window.showCredits = function() {
-        alert("3c-quiz-admin by Anica-blip\nGitHub: anica-blip/3c-quiz");
-      };
-
-      window.debugQuizAdmin = function() {
-        console.log("Current quizzes:", quizzes);
-        console.log("Supabase quizzes:", supabaseQuizzes);
-        console.log("Current index:", currentQuizIdx);
-        console.log("Selected page:", selectedPageIdx);
-        console.log("Selected block:", selectedBlockIdx);
-      };
-
-      window.addEventListener('unhandledrejection', function(event) {
-        showFatalError('Unhandled promise rejection: ' + (event.reason?.message || event.reason));
-      });
-
-      window.QuizAdminVersion = "v3.1.0";
-
-      // Final log
-      console.log("3c-quiz-admin loaded and ready.");
-      console.log("3c-quiz-admin: All logic loaded. Ready for use.");
-      console.log("3c-quiz-admin: Initialization complete.");
-
-    } catch(e) {
-      showFatalError(e.message || e);
-    }
-  });
-
-})();
-        renderApp();
       };
 
       function renderCanvas(page) {
@@ -894,3 +811,86 @@
           }
         }, 10);
         saveQuizzes();
+      };
+
+      // Initialization logic to start up the editor and archive
+      (async function init() {
+        quizzes = loadLocalQuizzes();
+        if (quizzes.length === 0) {
+          const id = await newQuizId();
+          quizzes.push(Object.assign(blankQuiz(), {id}));
+        }
+        await renderApp();
+      })();
+
+      // ========== Finalization and Utilities ==========
+
+      window.onerror = function(message, source, lineno, colno, error) {
+        showFatalError(`Global error: ${message} at ${source}:${lineno}:${colno}`);
+      };
+
+      function deepCopy(obj) {
+        return JSON.parse(JSON.stringify(obj));
+      }
+
+      window.clearApp = function() {
+        quizzes = [];
+        currentQuizIdx = 0;
+        selectedPageIdx = 0;
+        selectedBlockIdx = -1;
+        localStorage.removeItem('3c-quiz-admin-quizzes-v3');
+        renderApp();
+      };
+
+      window.onbeforeunload = function() {
+        saveQuizzes();
+      };
+
+      window._3cQuizAdmin = {
+        quizzes,
+        supabaseQuizzes,
+        currentQuizIdx,
+        selectedPageIdx,
+        selectedBlockIdx
+      };
+
+      window.reloadQuizAdmin = function() {
+        window.location.reload();
+      };
+
+      window.QuizAdminAPI = {
+        getQuizzes: () => quizzes,
+        getCurrentQuiz: () => quizzes[currentQuizIdx],
+        getQuizArchive: () => supabaseQuizzes,
+        reload: () => renderApp()
+      };
+
+      window.showCredits = function() {
+        alert("3c-quiz-admin by Anica-blip\nGitHub: anica-blip/3c-quiz");
+      };
+
+      window.debugQuizAdmin = function() {
+        console.log("Current quizzes:", quizzes);
+        console.log("Supabase quizzes:", supabaseQuizzes);
+        console.log("Current index:", currentQuizIdx);
+        console.log("Selected page:", selectedPageIdx);
+        console.log("Selected block:", selectedBlockIdx);
+      };
+
+      window.addEventListener('unhandledrejection', function(event) {
+        showFatalError('Unhandled promise rejection: ' + (event.reason?.message || event.reason));
+      });
+
+      window.QuizAdminVersion = "v3.1.0";
+
+      // Final log
+      console.log("3c-quiz-admin loaded and ready.");
+      console.log("3c-quiz-admin: All logic loaded. Ready for use.");
+      console.log("3c-quiz-admin: Initialization complete.");
+
+    } catch(e) {
+      showFatalError(e.message || e);
+    }
+  });
+
+})();
