@@ -24,11 +24,66 @@
 
       const CANVAS_W = 360, CANVAS_H = 640;
 
+      // UPDATED: New coordinate system based on background images
       const BLOCK_TYPES = [
-        { type: "title", label: "Title", w: 275, h: 55, x: 42, y: 231, size: 18, align: "left", color: "#222222", maxlen: 200 },
-        { type: "desc", label: "Description", w: 275, h: 256, x: 42, y: 294, size: 16, align: "left", color: "#444444", maxlen: 1000 },
-        { type: "question", label: "Question", w: 294, h: 55, x: 31, y: 109, size: 18, align: "left", color: "#222222", maxlen: 200 }
+        // Default coordinates for 2.png
+        { type: "title", label: "Title", w: 275, h: 60, x: 42, y: 214, size: 18, align: "left", color: "#ffffff", maxlen: 200, bold: true },
+        { type: "desc", label: "Description", w: 275, h: 186, x: 42, y: 283, size: 16, align: "left", color: "#ffffff", maxlen: 1000, bold: true },
+        { type: "question", label: "Question", w: 294, h: 60, x: 31, y: 109, size: 18, align: "left", color: "#ffffff", maxlen: 200, bold: true }
       ];
+
+      // UPDATED: Coordinate presets for different background types
+      const COORDINATE_PRESETS = {
+        // 2.png - Landing page
+        "2": {
+          "title": { w: 275, h: 60, x: 42, y: 214 },
+          "desc": { w: 275, h: 186, x: 42, y: 283 }
+        },
+        // 2a.png to 2h.png - Quiz pages
+        "2a": {
+          "question": { w: 294, h: 60, x: 31, y: 109 },
+          "answerA": { w: 294, h: 60, x: 31, y: 180 },
+          "answerB": { w: 294, h: 60, x: 31, y: 248 },
+          "answerC": { w: 294, h: 60, x: 31, y: 318 },
+          "answerD": { w: 294, h: 60, x: 31, y: 387 }
+        },
+        // 4.png - Results page
+        "4": {
+          "title": { w: 294, h: 272, x: 31, y: 114 },
+          "desc": { w: 294, h: 272, x: 31, y: 114 }
+        },
+        // 5a.png to 5d.png - Additional pages
+        "5a": {
+          "title": { w: 275, h: 54, x: 42, y: 212 },
+          "desc": { w: 275, h: 264, x: 42, y: 259 }
+        },
+        // 6.png - Final page
+        "6": {
+          "title": { w: 275, h: 68, x: 42, y: 214 }
+        }
+      };
+
+      // Helper function to detect background type and get appropriate coordinates
+      function getCoordinatesForBackground(bgPath, blockType) {
+        if (!bgPath) return null;
+        
+        const filename = bgPath.replace('static/', '').replace('.png', '');
+        
+        // Check for exact matches first
+        if (COORDINATE_PRESETS[filename] && COORDINATE_PRESETS[filename][blockType]) {
+          return COORDINATE_PRESETS[filename][blockType];
+        }
+        
+        // Check for pattern matches (2a-2h, 5a-5d)
+        if (filename.match(/^2[a-h]$/)) {
+          return COORDINATE_PRESETS["2a"][blockType];
+        }
+        if (filename.match(/^5[a-d]$/)) {
+          return COORDINATE_PRESETS["5a"][blockType];
+        }
+        
+        return null;
+      }
 
       let quizzes = [];
       let supabaseQuizzes = [];
@@ -144,351 +199,8 @@
         selectedPageIdx = 0;
         selectedBlockIdx = -1;
         saveQuizzes();
-        renderApp();
       };
 
-      function renderCanvas(page) {
-        if (!page) return `<div class="editor-canvas"></div>`;
-        return `
-          <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;position:relative;">
-            <img class="bg" src="${page.bg||''}" alt="bg">
-            ${(page.blocks||[]).map((b,bi) => `
-              <div class="text-block${bi===selectedBlockIdx?' selected':''}"
-                style="
-                  left:${b.x}px;top:${b.y}px;
-                  width:${b.w}px;
-                  height:${b.h}px;
-                  font-size:${b.size}px;
-                  color:${b.color};
-                  text-align:${b.align||'left'};
-                  position:absolute;
-                  "
-                data-idx="${bi}"
-                tabindex="0"
-                onclick="onSelectBlock(${bi});"
-                >
-                <span class="block-label">${b.label||b.type}</span>
-                <div class="block-content" contenteditable="true"
-                  oninput="onBlockTextInput(${bi},this)"
-                  spellcheck="true"
-                  style="
-                    direction: ltr; 
-                    font-size:inherit;color:inherit;
-                    text-align:${b.align||'left'};
-                    width:100%;min-height:24px;outline:none;background:transparent;border:none;
-                    overflow-wrap:break-word;white-space:pre-wrap;resize:none;display:block;vertical-align:top;padding:0;margin:0;max-height:none;overflow-y:auto;"
-                  >${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}</div>
-                <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
-              </div>
-            `).join('')}
-          </div>
-        `;
-      }
-
-      function renderBlockSettings(page) {
-        let b = (page.blocks||[])[selectedBlockIdx];
-        if (!b) return `<div style="margin-top:20px;">Select a block to edit its settings here.</div>`;
-        return `
-          <div style="margin-bottom:8px;">
-            <button onclick="onSelectBlock(${selectedBlockIdx})" style="font-weight:bold;">${b.label||b.type}</button>
-          </div>
-          <div class="block-settings">
-            <div style="font-size:1em;">
-              <b>W</b>: ${b.w} &times; <b>H</b>: ${b.h}<br>
-              <b>X</b>: ${b.x} &times; <b>Y</b>: ${b.y}
-            </div>
-            <label>Font Size: 
-              <input type="number" min="10" max="64" value="${b.size}" style="width:48px;"
-                onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
-            </label>
-            <label>Color: 
-              <input type="color" value="${b.color}"
-                onchange="onBlockColor(${selectedBlockIdx},this.value)">
-            </label>
-            <label>Width: 
-              <input type="number" min="80" max="${CANVAS_W-16}" value="${b.w}" style="width:48px;"
-                onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
-            </label>
-            <label>Height: 
-              <input type="number" min="24" max="${CANVAS_H}" value="${b.h}" style="width:48px;"
-                onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
-            </label>
-            <label>X: 
-              <input type="number" min="0" max="${CANVAS_W-20}" value="${b.x}" style="width:48px;"
-                onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
-            </label>
-            <label>Y: 
-              <input type="number" min="0" max="${CANVAS_H-20}" value="${b.y}" style="width:48px;"
-                onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
-            </label>
-            <label>Align:
-              <select onchange="onBlockAlign(${selectedBlockIdx},this.value)">
-                <option value="left" ${b.align==="left"?"selected":""}>Left</option>
-                <option value="center" ${b.align==="center"?"selected":""}>Center</option>
-              </select>
-            </label>
-          </div>
-        `;
-      }
-
-      function attachCanvasEvents() {
-        const canvas = document.getElementById('editor-canvas');
-        if (!canvas) return;
-        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-        let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
-        canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
-          blockEl.onmousedown = e => {
-            if (e.target.classList.contains('block-label') ||
-                e.target.classList.contains('block-content') ||
-                e.target.classList.contains('resize-handle')) return;
-            dragIdx = bi;
-            resizing = false;
-            startX = e.clientX;
-            startY = e.clientY;
-            startBlock = {...page.blocks[bi]};
-            selectedBlockIdx = bi;
-            document.body.style.userSelect = "none";
-            e.preventDefault();
-          };
-          let resizeHandle = blockEl.querySelector('.resize-handle');
-          if (resizeHandle) {
-            resizeHandle.onmousedown = e => {
-              dragIdx = bi;
-              resizing = true;
-              startX = e.clientX;
-              startY = e.clientY;
-              startBlock = {...page.blocks[bi]};
-              document.body.style.userSelect = "none";
-              e.stopPropagation();
-              e.preventDefault();
-            };
-          }
-        });
-        window.onmousemove = e => {
-          if (dragIdx===-1) return;
-          let block = page.blocks[dragIdx];
-          if (!block) return;
-          if (resizing) {
-            let dw = e.clientX-startX, dh = e.clientY-startY;
-            block.w = Math.max(80, Math.min(CANVAS_W-16, startBlock.w+dw));
-            block.h = Math.max(24, startBlock.h+dh);
-          } else {
-            let dx = e.clientX-startX, dy = e.clientY-startY;
-            block.x = Math.max(0, Math.min(CANVAS_W-block.w, startBlock.x+dx));
-            block.y = Math.max(0, Math.min(CANVAS_H-block.h, startBlock.y+dy));
-          }
-          saveQuizzes();
-          renderApp();
-        };
-        window.onmouseup = e => {
-          dragIdx = -1;
-          resizing = false;
-          document.body.style.userSelect = "";
-        };
-      }
-
-      // Main render function, async for quiz archive
-      async function renderApp() {
-        try {
-          const app = document.getElementById('app');
-          if (!app) throw new Error("App container not found!");
-          const quiz = quizzes[currentQuizIdx] || blankQuiz();
-          const pages = quiz.pages || [];
-          const page = pages[selectedPageIdx] || {};
-
-          // --- Editor UI ---
-          app.innerHTML = `
-            <div style="display:flex;">
-              <div class="sidebar" style="background:#f6f8fa;padding:18px 8px 0 0;min-width:220px;">
-                <div class="page-list">
-                  <strong>Pages</strong>
-                  <ul style="list-style:none;padding-left:0;">
-                    ${pages.map((p, i) => `
-                      <li style="display:flex;align-items:center;gap:5px;margin-bottom:4px;">
-                        <button class="${i===selectedPageIdx?'active':''}" onclick="onSelectPage(${i})" style="border-radius:6px;background:#fff;border:1px solid #ddd;">
-                          <img class="page-img-thumb" src="${p.bg || ''}" alt="" style="width:32px;height:32px;object-fit:cover;">
-                          <span class="img-filename" style="font-size:0.95em;">${(p.bg||'').replace('static/','')}</span>
-                        </button>
-                        <button onclick="onRemovePage(${i})" class="danger" style="font-size:0.95em;padding:2px 7px;">✕</button>
-                        <button onclick="onMovePageUpSingle(${i})" ${i===0?'disabled':''} title="Move Up" style="padding:2px 5px;font-size:1em;">⬆️</button>
-                        <button onclick="onMovePageDownSingle(${i})" ${i===pages.length-1?'disabled':''} title="Move Down" style="padding:2px 5px;font-size:1em;">⬇️</button>
-                      </li>
-                    `).join('')}
-                  </ul>
-                  <div class="page-actions" style="margin-bottom:14px;">
-                    <button onclick="onAddPage()" style="margin-right:4px;">+ Add Page</button>
-                    <button onclick="onDuplicatePage()">Duplicate Page</button>
-                  </div>
-                </div>
-                <div class="block-controls" style="margin-bottom:18px;">
-                  <strong>Add Block</strong>
-                  <div style="display:flex;flex-direction:column;gap:4px;">
-                    <button onclick="onAddBlock('title')">Title</button>
-                    <button onclick="onAddBlock('desc')">Description</button>
-                    <button onclick="onAddBlock('question')">Question</button>
-                    <button onclick="onAddAnswerBlock('A')">Answer A</button>
-                    <button onclick="onAddAnswerBlock('B')">Answer B</button>
-                    <button onclick="onAddAnswerBlock('C')">Answer C</button>
-                    <button onclick="onAddAnswerBlock('D')">Answer D</button>
-                    <button onclick="onRemoveAllBlocks()" class="danger" style="margin-top:4px;">Remove All</button>
-                    <button onclick="onRemoveBlockSidebar()" class="danger" style="margin-top:8px;" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
-                  </div>
-                </div>
-              </div>
-              <div class="mainpanel" style="flex:1;min-width:370px;">
-                <div class="header" style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;">
-                  <h1 style="flex:1;text-align:left;">3c-quiz-admin</h1>
-                  <button onclick="onNewQuizTab()" style="background:#0070f3;color:#fff;border-radius:4px;margin-right:12px;">New Quiz</button>
-                  <span><b>Quiz ID:</b> <span style="background:#fe0;padding:2px 6px;border-radius:4px">${quiz.id}</span></span>
-                  <input type="text" value="${quiz.title}" style="margin-left:12px;width:180px;" onchange="onQuizTitleChange(this.value)">
-                </div>
-                <div style="margin-bottom:8px;">
-                  <button onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''} style="min-width:32px;">&larr;</button>
-                  <span style="margin:0 12px;">Page ${selectedPageIdx+1} / ${pages.length}</span>
-                  <button onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''} style="min-width:32px;">&rarr;</button>
-                  <button onclick="onSavePage()" style="margin-left:12px;">💾 Save Page</button>
-                </div>
-                <div style="display:flex;gap:32px;">
-                  <div>
-                    ${renderCanvas(page)}
-                    <div style="margin:6px 0;">
-                      <label>Background:
-                        <input type="text" value="${page.bg||''}" style="width:160px;" onchange="onBgChange(this.value)">
-                      </label>
-                      <button onclick="onPickBg()">Pick Image</button>
-                    </div>
-                  </div>
-                  <div>
-                    ${renderBlockSettings(page)}
-                    <div class="save-area" style="margin-top:18px; display:flex; gap:18px;">
-                      <button onclick="onSaveQuiz()">💾 Save Quiz</button>
-                      <button onclick="onExportQuiz()">⬇ Export JSON</button>
-                      <button onclick="onImportQuiz()">⬆ Import JSON</button>
-                      <div id="supabase-status" style="margin-top:10px;font-size:0.98em;color:#0a0"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <!-- ARCHIVE SECTION BELOW EDITOR, NOT IN FLEX ROW -->
-            <div id="quiz-archive-wrap" style="width:100%;"></div>
-          `;
-
-          setTimeout(attachCanvasEvents, 30);
-          setTimeout(()=>{
-            if (selectedBlockIdx >= 0) {
-              let canvas = document.getElementById("editor-canvas");
-              if (canvas) {
-                let blockEls = canvas.querySelectorAll('.text-block');
-                let contentEl = blockEls[selectedBlockIdx]?.querySelector('.block-content');
-                if (contentEl) contentEl.focus();
-              }
-            }
-          }, 100);
-
-          // Render quiz archive BELOW the editor/app, as a new section (not inside the flex row)
-          const archiveDiv = document.getElementById('quiz-archive-wrap');
-          if (archiveDiv) archiveDiv.innerHTML = await renderQuizArchive();
-        } catch(e) {
-          showFatalError("Render error: " + e.message);
-        }
-      }
-
-      // ========== Block/Page/Quiz Control Logic ==========
-
-      window.onAddAnswerBlock = function(letter) {
-        let coords = {
-          "A": { x: 31, y: 216 },
-          "B": { x: 31, y: 286 },
-          "C": { x: 31, y: 356 },
-          "D": { x: 31, y: 426 }
-        };
-        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-        page.blocks = page.blocks || [];
-        page.blocks.push({
-          type: "answer",
-          label: `Answer ${letter}`,
-          resultType: letter,
-          text: "",
-          x: coords[letter].x, y: coords[letter].y,
-          w: 294, h: 55,
-          size: 16,
-          color: "#003366",
-          align: "left",
-          maxlen: 200
-        });
-        selectedBlockIdx = page.blocks.length-1;
-        saveQuizzes();
-        renderApp();
-      };
-      window.onRemoveBlockSidebar = function() {
-        if (selectedBlockIdx < 0) return;
-        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-        page.blocks.splice(selectedBlockIdx,1);
-        selectedBlockIdx = -1;
-        saveQuizzes();
-        renderApp();
-      };
-      window.onAddBlock = function(type) {
-        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-        let tpl = BLOCK_TYPES.find(b => b.type===type);
-        if (!tpl) return;
-        page.blocks = page.blocks||[];
-        page.blocks.push({
-          type: tpl.type,
-          label: tpl.label,
-          text: "",
-          x: tpl.x, y: tpl.y,
-          w: tpl.w, h: tpl.h,
-          size: tpl.size,
-          color: tpl.color,
-          align: tpl.align,
-          maxlen: tpl.maxlen
-        });
-        selectedBlockIdx = page.blocks.length-1;
-        saveQuizzes();
-        renderApp();
-      };
-      window.onRemoveAllBlocks = function() {
-        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-        page.blocks = [];
-        selectedBlockIdx = -1;
-        saveQuizzes();
-        renderApp();
-      };
-      window.onSelectBlock = function(idx) {
-        selectedBlockIdx = idx;
-        renderApp();
-      };
-      window.onBlockAlign = function(idx, val) {
-        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-        let b = page.blocks[idx];
-        b.align = val;
-        saveQuizzes();
-        renderApp();
-      };
-      window.onBlockTextInput = function(bi, el) {
-        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-        let b = page.blocks[bi];
-        let text = el.innerText.replace(/\u200B/g, '');
-        if (b.maxlen) text = text.slice(0, b.maxlen);
-        b.text = text;
-        setTimeout(()=>{
-          let canvas = document.getElementById("editor-canvas");
-          if (!canvas) return;
-          let blockEls = canvas.querySelectorAll('.text-block');
-          let contentEl = blockEls[bi]?.querySelector('.block-content');
-          if (contentEl) {
-            contentEl.style.height = "auto";
-            let box = contentEl.getBoundingClientRect();
-            let h = Math.max(b.h, box.height + 8);
-            b.h = Math.min(h, CANVAS_H - b.y);
-            saveQuizzes();
-            renderApp();
-          }
-        }, 10);
-        saveQuizzes();
-      };
       window.onBlockFontSize = function(bi, val) {
         let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
         page.blocks[bi].size = parseInt(val)||18;
@@ -767,3 +479,418 @@
   });
 
 })();
+        renderApp();
+      };
+
+      function renderCanvas(page) {
+        if (!page) return `<div class="editor-canvas"></div>`;
+        return `
+          <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;position:relative;">
+            <img class="bg" src="${page.bg||''}" alt="bg">
+            ${(page.blocks||[]).map((b,bi) => `
+              <div class="text-block${bi===selectedBlockIdx?' selected':''}"
+                style="
+                  left:${b.x}px;top:${b.y}px;
+                  width:${b.w}px;
+                  height:${b.h}px;
+                  font-size:${b.size}px;
+                  color:${b.color};
+                  font-weight: ${b.bold ? 'bold' : 'normal'};
+                  text-align:${b.align||'left'};
+                  position:absolute;
+                  "
+                data-idx="${bi}"
+                tabindex="0"
+                onclick="onSelectBlock(${bi});"
+                >
+                <span class="block-label">${b.label||b.type}</span>
+                <div class="block-content" contenteditable="true"
+                  oninput="onBlockTextInput(${bi},this)"
+                  spellcheck="true"
+                  style="
+                    direction: ltr !important; 
+                    text-align: left !important;
+                    font-size:inherit;
+                    color:inherit;
+                    font-weight: inherit;
+                    width:100%;
+                    min-height:24px;
+                    outline:none;
+                    background:transparent;
+                    border:none;
+                    overflow-wrap:break-word;
+                    white-space:pre-wrap;
+                    resize:none;
+                    display:block;
+                    vertical-align:top;
+                    padding:4px;
+                    margin:0;
+                    max-height:none;
+                    overflow-y:auto;"
+                  >${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}</div>
+                <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      function renderBlockSettings(page) {
+        let b = (page.blocks||[])[selectedBlockIdx];
+        if (!b) return `<div style="margin-top:20px;">Select a block to edit its settings here.</div>`;
+        return `
+          <div style="margin-bottom:8px;">
+            <button onclick="onSelectBlock(${selectedBlockIdx})" style="font-weight:bold;">${b.label||b.type}</button>
+          </div>
+          <div class="block-settings">
+            <div style="font-size:1em;">
+              <b>W</b>: ${b.w} &times; <b>H</b>: ${b.h}<br>
+              <b>X</b>: ${b.x} &times; <b>Y</b>: ${b.y}
+            </div>
+            <label>Font Size: 
+              <input type="number" min="10" max="64" value="${b.size}" style="width:48px;"
+                onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
+            </label>
+            <label>Color: 
+              <input type="color" value="${b.color}"
+                onchange="onBlockColor(${selectedBlockIdx},this.value)">
+            </label>
+            <label>Bold: 
+              <input type="checkbox" ${b.bold ? 'checked' : ''}
+                onchange="onBlockBold(${selectedBlockIdx},this.checked)">
+            </label>
+            <label>Width: 
+              <input type="number" min="80" max="${CANVAS_W-16}" value="${b.w}" style="width:48px;"
+                onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
+            </label>
+            <label>Height: 
+              <input type="number" min="24" max="${CANVAS_H}" value="${b.h}" style="width:48px;"
+                onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
+            </label>
+            <label>X: 
+              <input type="number" min="0" max="${CANVAS_W-20}" value="${b.x}" style="width:48px;"
+                onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
+            </label>
+            <label>Y: 
+              <input type="number" min="0" max="${CANVAS_H-20}" value="${b.y}" style="width:48px;"
+                onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
+            </label>
+            <label>Align:
+              <select onchange="onBlockAlign(${selectedBlockIdx},this.value)">
+                <option value="left" ${b.align==="left"?"selected":""}>Left</option>
+                <option value="center" ${b.align==="center"?"selected":""}>Center</option>
+              </select>
+            </label>
+          </div>
+        `;
+      }
+
+      function attachCanvasEvents() {
+        const canvas = document.getElementById('editor-canvas');
+        if (!canvas) return;
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
+        canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
+          blockEl.onmousedown = e => {
+            if (e.target.classList.contains('block-label') ||
+                e.target.classList.contains('block-content') ||
+                e.target.classList.contains('resize-handle')) return;
+            dragIdx = bi;
+            resizing = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            startBlock = {...page.blocks[bi]};
+            selectedBlockIdx = bi;
+            document.body.style.userSelect = "none";
+            e.preventDefault();
+          };
+          let resizeHandle = blockEl.querySelector('.resize-handle');
+          if (resizeHandle) {
+            resizeHandle.onmousedown = e => {
+              dragIdx = bi;
+              resizing = true;
+              startX = e.clientX;
+              startY = e.clientY;
+              startBlock = {...page.blocks[bi]};
+              document.body.style.userSelect = "none";
+              e.stopPropagation();
+              e.preventDefault();
+            };
+          }
+        });
+        window.onmousemove = e => {
+          if (dragIdx===-1) return;
+          let block = page.blocks[dragIdx];
+          if (!block) return;
+          if (resizing) {
+            let dw = e.clientX-startX, dh = e.clientY-startY;
+            block.w = Math.max(80, Math.min(CANVAS_W-16, startBlock.w+dw));
+            block.h = Math.max(24, startBlock.h+dh);
+          } else {
+            let dx = e.clientX-startX, dy = e.clientY-startY;
+            block.x = Math.max(0, Math.min(CANVAS_W-block.w, startBlock.x+dx));
+            block.y = Math.max(0, Math.min(CANVAS_H-block.h, startBlock.y+dy));
+          }
+          saveQuizzes();
+          renderApp();
+        };
+        window.onmouseup = e => {
+          dragIdx = -1;
+          resizing = false;
+          document.body.style.userSelect = "";
+        };
+      }
+
+      // Main render function, async for quiz archive
+      async function renderApp() {
+        try {
+          const app = document.getElementById('app');
+          if (!app) throw new Error("App container not found!");
+          const quiz = quizzes[currentQuizIdx] || blankQuiz();
+          const pages = quiz.pages || [];
+          const page = pages[selectedPageIdx] || {};
+
+          // --- Editor UI ---
+          app.innerHTML = `
+            <div style="display:flex;">
+              <div class="sidebar" style="background:#f6f8fa;padding:18px 8px 0 0;min-width:220px;">
+                <div class="page-list">
+                  <strong>Pages</strong>
+                  <ul style="list-style:none;padding-left:0;">
+                    ${pages.map((p, i) => `
+                      <li style="display:flex;align-items:center;gap:5px;margin-bottom:4px;">
+                        <button class="${i===selectedPageIdx?'active':''}" onclick="onSelectPage(${i})" style="border-radius:6px;background:#fff;border:1px solid #ddd;">
+                          <img class="page-img-thumb" src="${p.bg || ''}" alt="" style="width:32px;height:32px;object-fit:cover;">
+                          <span class="img-filename" style="font-size:0.95em;">${(p.bg||'').replace('static/','')}</span>
+                        </button>
+                        <button onclick="onMovePageUpSingle(${i})" ${i===0?'disabled':''} title="Move Up" style="padding:2px 5px;font-size:1em;">⬆️</button>
+                        <button onclick="onMovePageDownSingle(${i})" ${i===pages.length-1?'disabled':''} title="Move Down" style="padding:2px 5px;font-size:1em;">⬇️</button>
+                        <button onclick="onRemovePage(${i})" class="danger" style="font-size:0.95em;padding:2px 7px;">✕</button>
+                      </li>
+                    `).join('')}
+                  </ul>
+                  <div class="page-actions" style="margin-bottom:14px;">
+                    <button onclick="onAddPage()" style="margin-right:4px;">+ Add Page</button>
+                    <button onclick="onDuplicatePage()">Duplicate Page</button>
+                  </div>
+                </div>
+                <div class="block-controls" style="margin-bottom:18px;">
+                  <strong>Add Block</strong>
+                  <div style="display:flex;flex-direction:column;gap:4px;">
+                    <button onclick="onAddBlock('title')">Title</button>
+                    <button onclick="onAddBlock('desc')">Description</button>
+                    <button onclick="onAddBlock('question')">Question</button>
+                    <button onclick="onAddAnswerBlock('A')">Answer A</button>
+                    <button onclick="onAddAnswerBlock('B')">Answer B</button>
+                    <button onclick="onAddAnswerBlock('C')">Answer C</button>
+                    <button onclick="onAddAnswerBlock('D')">Answer D</button>
+                    <button onclick="onRemoveAllBlocks()" class="danger" style="margin-top:4px;">Remove All</button>
+                    <button onclick="onRemoveBlockSidebar()" class="danger" style="margin-top:8px;" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
+                  </div>
+                </div>
+              </div>
+              <div class="mainpanel" style="flex:1;min-width:370px;">
+                <div class="header" style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;">
+                  <h1 style="flex:1;text-align:left;">3c-quiz-admin</h1>
+                  <button onclick="onNewQuizTab()" style="background:#0070f3;color:#fff;border-radius:4px;margin-right:12px;">New Quiz</button>
+                  <span><b>Quiz ID:</b> <span style="background:#fe0;padding:2px 6px;border-radius:4px">${quiz.id}</span></span>
+                  <input type="text" value="${quiz.title}" style="margin-left:12px;width:180px;" onchange="onQuizTitleChange(this.value)">
+                </div>
+                <div style="margin-bottom:8px;">
+                  <button onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''} style="min-width:32px;">&larr;</button>
+                  <span style="margin:0 12px;">Page ${selectedPageIdx+1} / ${pages.length}</span>
+                  <button onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''} style="min-width:32px;">&rarr;</button>
+                  <button onclick="onSavePage()" style="margin-left:12px;">💾 Save Page</button>
+                </div>
+                <div style="display:flex;gap:32px;">
+                  <div>
+                    ${renderCanvas(page)}
+                    <div style="margin:6px 0;">
+                      <label>Background:
+                        <input type="text" value="${page.bg||''}" style="width:160px;" onchange="onBgChange(this.value)">
+                      </label>
+                      <button onclick="onPickBg()">Pick Image</button>
+                    </div>
+                  </div>
+                  <div>
+                    ${renderBlockSettings(page)}
+                    <div class="save-area" style="margin-top:18px; display:flex; gap:18px;">
+                      <button onclick="onSaveQuiz()">💾 Save Quiz</button>
+                      <button onclick="onExportQuiz()">⬇ Export JSON</button>
+                      <button onclick="onImportQuiz()">⬆ Import JSON</button>
+                      <div id="supabase-status" style="margin-top:10px;font-size:0.98em;color:#0a0"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- ARCHIVE SECTION BELOW EDITOR, NOT IN FLEX ROW -->
+            <div id="quiz-archive-wrap" style="width:100%;"></div>
+          `;
+
+          setTimeout(attachCanvasEvents, 30);
+          setTimeout(()=>{
+            if (selectedBlockIdx >= 0) {
+              let canvas = document.getElementById("editor-canvas");
+              if (canvas) {
+                let blockEls = canvas.querySelectorAll('.text-block');
+                let contentEl = blockEls[selectedBlockIdx]?.querySelector('.block-content');
+                if (contentEl) {
+                  contentEl.focus();
+                  // FORCE cursor to end and ensure LTR
+                  const range = document.createRange();
+                  const sel = window.getSelection();
+                  range.selectNodeContents(contentEl);
+                  range.collapse(false);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                  contentEl.style.direction = 'ltr';
+                  contentEl.style.textAlign = 'left';
+                }
+              }
+            }
+          }, 100);
+
+          // Render quiz archive BELOW the editor/app, as a new section (not inside the flex row)
+          const archiveDiv = document.getElementById('quiz-archive-wrap');
+          if (archiveDiv) archiveDiv.innerHTML = await renderQuizArchive();
+        } catch(e) {
+          showFatalError("Render error: " + e.message);
+        }
+      }
+
+      // ========== Block/Page/Quiz Control Logic ==========
+
+      window.onAddAnswerBlock = function(letter) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let coords = getCoordinatesForBackground(page.bg, `answer${letter}`);
+        
+        if (!coords) {
+          // Fallback coordinates
+          coords = {
+            "A": { x: 31, y: 180 },
+            "B": { x: 31, y: 248 },
+            "C": { x: 31, y: 318 },
+            "D": { x: 31, y: 387 }
+          }[letter];
+          coords.w = 294;
+          coords.h = 60;
+        }
+        
+        page.blocks = page.blocks || [];
+        page.blocks.push({
+          type: "answer",
+          label: `Answer ${letter}`,
+          resultType: letter,
+          text: "",
+          x: coords.x, y: coords.y,
+          w: coords.w, h: coords.h,
+          size: 16,
+          color: "#ffffff",
+          align: "left",
+          bold: true,
+          maxlen: 200
+        });
+        selectedBlockIdx = page.blocks.length-1;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onRemoveBlockSidebar = function() {
+        if (selectedBlockIdx < 0) return;
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        page.blocks.splice(selectedBlockIdx,1);
+        selectedBlockIdx = -1;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onAddBlock = function(type) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let coords = getCoordinatesForBackground(page.bg, type);
+        let tpl = BLOCK_TYPES.find(b => b.type===type);
+        
+        if (!tpl && !coords) return;
+        
+        // Use coordinates from background or template
+        let blockData = {
+          type: type,
+          label: tpl ? tpl.label : type.charAt(0).toUpperCase() + type.slice(1),
+          text: "",
+          size: 18,
+          color: "#ffffff",
+          align: "left",
+          bold: true,
+          maxlen: tpl ? tpl.maxlen : 500
+        };
+        
+        if (coords) {
+          Object.assign(blockData, coords);
+        } else {
+          Object.assign(blockData, {
+            x: tpl.x, y: tpl.y, w: tpl.w, h: tpl.h
+          });
+        }
+        
+        page.blocks = page.blocks || [];
+        page.blocks.push(blockData);
+        selectedBlockIdx = page.blocks.length-1;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onRemoveAllBlocks = function() {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        page.blocks = [];
+        selectedBlockIdx = -1;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onSelectBlock = function(idx) {
+        selectedBlockIdx = idx;
+        renderApp();
+      };
+
+      window.onBlockAlign = function(idx, val) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let b = page.blocks[idx];
+        b.align = val;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onBlockBold = function(idx, val) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let b = page.blocks[idx];
+        b.bold = val;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onBlockTextInput = function(bi, el) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let b = page.blocks[bi];
+        let text = el.innerText.replace(/\u200B/g, '');
+        if (b.maxlen) text = text.slice(0, b.maxlen);
+        b.text = text;
+        
+        // FORCE LTR direction
+        el.style.direction = 'ltr';
+        el.style.textAlign = 'left';
+        
+        setTimeout(()=>{
+          let canvas = document.getElementById("editor-canvas");
+          if (!canvas) return;
+          let blockEls = canvas.querySelectorAll('.text-block');
+          let contentEl = blockEls[bi]?.querySelector('.block-content');
+          if (contentEl) {
+            contentEl.style.height = "auto";
+            let box = contentEl.getBoundingClientRect();
+            let h = Math.max(b.h, box.height + 8);
+            b.h = Math.min(h, CANVAS_H - b.y);
+            saveQuizzes();
+            renderApp();
+          }
+        }, 10);
+        saveQuizzes();
