@@ -170,13 +170,13 @@ function renderQuizArchive() {
 
 function render() {
   app.innerHTML = `
-    <div>
+    <div style="direction: ltr; text-align: left;">
       <label for="quizTitleInput">Quiz Title:</label>
-      <input type="text" id="quizTitleInput" value="${QUIZ_TITLE}" placeholder="Enter quiz title">
+      <input type="text" id="quizTitleInput" value="${QUIZ_TITLE}" placeholder="Enter quiz title" style="direction: ltr; text-align: left;">
       <div>Quiz Editor for ${QUIZ_SLUG || "[new quiz]"} <span style="font-size:smaller;color:#aaa;">(slug: ${QUIZ_SLUG || ""})</span></div>
       <div id="quizUrlBlock" style="margin:14px 0;padding:12px;border:2px solid #4682b4;border-radius:8px;background:#f3f8ff;">
         <strong style="display:block;font-size:1.1em;margin-bottom:8px;">Quiz URL for sharing:</strong>
-        <input type="text" id="quizUrlCopyField" value="${QUIZ_URL}" readonly style="width:75%;font-size:1em;padding:6px;">
+        <input type="text" id="quizUrlCopyField" value="${QUIZ_URL}" readonly style="width:75%;font-size:1em;padding:6px;direction: ltr; text-align: left;">
         <button id="copyQuizUrlBtn" style="margin-left:12px;padding:5px 14px;">Copy URL</button>
         <span id="quizUrlCopiedMsg" style="margin-left:8px;color:green;display:none;">Copied!</span>
       </div>
