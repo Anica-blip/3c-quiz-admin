@@ -90,6 +90,9 @@
       let currentQuizIdx = 0;
       let selectedPageIdx = 0;
       let selectedBlockIdx = -1;
+      
+      // Add debounce for text input to prevent lag
+      let textInputTimeout = null;
 
       function blankQuiz() {
         return {
@@ -569,69 +572,65 @@
 
           // --- Editor UI ---
           app.innerHTML = `
-            <div style="display:flex;">
-              <div class="sidebar" style="background:#f6f8fa;padding:18px 8px 0 0;min-width:220px;">
+            <div class="row-flex">
+              <div class="sidebar">
                 <div class="page-list">
                   <strong>Pages</strong>
-                  <ul style="list-style:none;padding-left:0;">
+                  <ul>
                     ${pages.map((p, i) => `
-                      <li style="display:flex;align-items:center;gap:5px;margin-bottom:4px;">
-                        <button class="${i===selectedPageIdx?'active':''}" onclick="onSelectPage(${i})" style="border-radius:6px;background:#fff;border:1px solid #ddd;">
-                          <img class="page-img-thumb" src="${p.bg || ''}" alt="" style="width:32px;height:32px;object-fit:cover;">
-                          <span class="img-filename" style="font-size:0.95em;">${(p.bg||'').replace('static/','')}</span>
+                      <li>
+                        <button class="page-button ${i===selectedPageIdx?'active':''}" onclick="onSelectPage(${i})">
+                          <img class="page-img-thumb" src="${p.bg || ''}" alt="" onerror="this.style.display='none';">
+                          <span class="img-filename">${(p.bg||'').replace('static/','') || `Page ${i+1}`}</span>
                         </button>
-                        <button onclick="onMovePageUpSingle(${i})" ${i===0?'disabled':''} title="Move Up" style="padding:2px 5px;font-size:1em;">⬆️</button>
-                        <button onclick="onMovePageDownSingle(${i})" ${i===pages.length-1?'disabled':''} title="Move Down" style="padding:2px 5px;font-size:1em;">⬇️</button>
-                        <button onclick="onRemovePage(${i})" class="danger" style="font-size:0.95em;padding:2px 7px;">✕</button>
+                        <button onclick="onMovePageUpSingle(${i})" ${i===0?'disabled':''} title="Move Up">⬆️</button>
+                        <button onclick="onMovePageDownSingle(${i})" ${i===pages.length-1?'disabled':''} title="Move Down">⬇️</button>
+                        <button onclick="onRemovePage(${i})" class="danger">✕</button>
                       </li>
                     `).join('')}
                   </ul>
-                  <div class="page-actions" style="margin-bottom:14px;">
-                    <button onclick="onAddPage()" style="margin-right:4px;">+ Add Page</button>
-                    <button onclick="onDuplicatePage()">Duplicate Page</button>
+                  <div class="page-actions">
+                    <button onclick="onAddPage()">+ Add Page</button>
+                    <button onclick="onDuplicatePage()">Duplicate</button>
                   </div>
                 </div>
-                <div class="block-controls" style="margin-bottom:18px;">
+                <div class="block-controls">
                   <strong>Add Block</strong>
-                  <div style="display:flex;flex-direction:column;gap:4px;">
-                    <button onclick="onAddBlock('title')">Title</button>
-                    <button onclick="onAddBlock('desc')">Description</button>
-                    <button onclick="onAddBlock('question')">Question</button>
-                    <button onclick="onAddAnswerBlock('A')">Answer A</button>
-                    <button onclick="onAddAnswerBlock('B')">Answer B</button>
-                    <button onclick="onAddAnswerBlock('C')">Answer C</button>
-                    <button onclick="onAddAnswerBlock('D')">Answer D</button>
-                    <button onclick="onRemoveAllBlocks()" class="danger" style="margin-top:4px;">Remove All</button>
-                    <button onclick="onRemoveBlockSidebar()" class="danger" style="margin-top:8px;" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
-                  </div>
+                  <button onclick="onAddBlock('title')">Title</button>
+                  <button onclick="onAddBlock('desc')">Description</button>
+                  <button onclick="onAddBlock('question')">Question</button>
+                  <button onclick="onAddAnswerBlock('A')">Answer A</button>
+                  <button onclick="onAddAnswerBlock('B')">Answer B</button>
+                  <button onclick="onAddAnswerBlock('C')">Answer C</button>
+                  <button onclick="onAddAnswerBlock('D')">Answer D</button>
+                  <button onclick="onRemoveAllBlocks()" class="danger">Remove All</button>
+                  <button onclick="onRemoveBlockSidebar()" class="danger" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
                 </div>
               </div>
-              <div class="mainpanel" style="flex:1;min-width:370px;">
-                <div class="header" style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:8px;">
-                  <h1 style="flex:1;text-align:left;">3c-quiz-admin</h1>
-                  <button onclick="onNewQuizTab()" style="background:#0070f3;color:#fff;border-radius:4px;margin-right:12px;">New Quiz</button>
+              <div class="mainpanel">
+                <div class="header">
+                  <h1>3c-quiz-admin</h1>
+                  <button onclick="onNewQuizTab()">New Quiz</button>
                   <span><b>Quiz ID:</b> <span style="background:#fe0;padding:2px 6px;border-radius:4px">${quiz.id}</span></span>
-                  <input type="text" value="${quiz.title}" style="margin-left:12px;width:180px;" onchange="onQuizTitleChange(this.value)">
+                  <input type="text" value="${quiz.title}" style="width:180px;" onchange="onQuizTitleChange(this.value)">
                 </div>
-                <div style="margin-bottom:8px;">
+                <div style="margin-bottom:8px;display:flex;align-items:center;gap:12px;">
                   <button onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''} style="min-width:32px;">&larr;</button>
-                  <span style="margin:0 12px;">Page ${selectedPageIdx+1} / ${pages.length}</span>
+                  <span style="margin:0;">Page ${selectedPageIdx+1} / ${pages.length}</span>
                   <button onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''} style="min-width:32px;">&rarr;</button>
                   <button onclick="onSavePage()" style="margin-left:12px;">💾 Save Page</button>
+                  <label style="margin-left:20px;">Background:
+                    <input type="text" value="${page.bg||''}" style="width:160px;" onchange="onBgChange(this.value)" placeholder="static/3a.png">
+                  </label>
+                  <button onclick="onPickBg()">Pick Image</button>
                 </div>
-                <div style="display:flex;gap:32px;">
+                <div class="editor-canvas-wrap">
                   <div>
                     ${renderCanvas(page)}
-                    <div style="margin:6px 0;">
-                      <label>Background:
-                        <input type="text" value="${page.bg||''}" style="width:160px;" onchange="onBgChange(this.value)">
-                      </label>
-                      <button onclick="onPickBg()">Pick Image</button>
-                    </div>
                   </div>
                   <div>
                     ${renderBlockSettings(page)}
-                    <div class="save-area" style="margin-top:18px; display:flex; gap:18px;">
+                    <div class="save-area">
                       <button onclick="onSaveQuiz()">💾 Save Quiz</button>
                       <button onclick="onExportQuiz()">⬇ Export JSON</button>
                       <button onclick="onImportQuiz()">⬆ Import JSON</button>
@@ -785,6 +784,7 @@
         renderApp();
       };
 
+      // FIXED: Debounced text input to prevent lag
       window.onBlockTextInput = function(bi, el) {
         let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
         let b = page.blocks[bi];
@@ -796,22 +796,29 @@
         el.style.direction = 'ltr';
         el.style.textAlign = 'left';
         
-        setTimeout(()=>{
-          let canvas = document.getElementById("editor-canvas");
-          if (!canvas) return;
-          let blockEls = canvas.querySelectorAll('.text-block');
-          let contentEl = blockEls[bi]?.querySelector('.block-content');
-          if (contentEl) {
-            contentEl.style.height = "auto";
-            let box = contentEl.getBoundingClientRect();
-            let h = Math.max(b.h, box.height + 8);
-            b.h = Math.min(h, CANVAS_H - b.y);
-            saveQuizzes();
-            renderApp();
-          }
-        }, 10);
-        saveQuizzes();
+        // Clear previous timeout
+        if (textInputTimeout) {
+          clearTimeout(textInputTimeout);
+        }
+        
+        // Save with debounce - only save after user stops typing for 300ms
+        textInputTimeout = setTimeout(() => {
+          saveQuizzes();
+          // Only update block settings if visible - don't re-render entire app
+          updateBlockSettingsOnly(bi);
+        }, 300);
       };
+      
+      // Helper function to update just the block settings without full re-render
+      function updateBlockSettingsOnly(blockIndex) {
+        if (selectedBlockIdx === blockIndex) {
+          const page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+          const blockSettingsArea = document.querySelector('.editor-canvas-wrap > div:nth-child(2) > div:nth-child(1)');
+          if (blockSettingsArea) {
+            blockSettingsArea.innerHTML = renderBlockSettings(page).replace(/<div[^>]*>/, '').replace(/<\/div>$/, '');
+          }
+        }
+      }
 
       // Initialization logic to start up the editor and archive
       (async function init() {
@@ -872,7 +879,6 @@
       window.debugQuizAdmin = function() {
         console.log("Current quizzes:", quizzes);
         console.log("Supabase quizzes:", supabaseQuizzes);
-        console.log("Current index:", currentQuizIdx);
         console.log("Selected page:", selectedPageIdx);
         console.log("Selected block:", selectedBlockIdx);
       };
@@ -881,7 +887,7 @@
         showFatalError('Unhandled promise rejection: ' + (event.reason?.message || event.reason));
       });
 
-      window.QuizAdminVersion = "v3.1.0";
+      window.QuizAdminVersion = "v3.1.1";
 
       // Final log
       console.log("3c-quiz-admin loaded and ready.");
@@ -894,3 +900,4 @@
   });
 
 })();
+
