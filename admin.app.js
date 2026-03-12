@@ -264,23 +264,53 @@
           return;
         }
 
-        // Always overwrite (upsert) the quiz entry in Supabase
-        let { error } = await supabaseClient
+        // Check if quiz already exists, then update or insert explicitly
+        // (avoids RLS issues with anon key upsert on Supabase)
+        const { data: existingRow, error: selectError } = await supabaseClient
           .from('quizzes')
-          .upsert([dbQuiz], { onConflict: "quiz_slug" });
+          .select('quiz_slug')
+          .eq('quiz_slug', quiz_slug)
+          .maybeSingle();
 
-        if (error) {
+        if (selectError) {
           if (statusDiv) {
             statusDiv.style.color = "#c00";
-            statusDiv.textContent = "❌ Error saving quiz: " + error.message;
+            statusDiv.textContent = "❌ Error checking quiz: " + selectError.message;
           }
-          alert("Supabase save failed: " + error.message);
+          alert("Supabase check failed: " + selectError.message);
+          return;
+        }
+
+        let saveError;
+        if (existingRow) {
+          // UPDATE existing row
+          const { error: updateError } = await supabaseClient
+            .from('quizzes')
+            .update({ quiz_url, title: qz.title, pages: qz.pages })
+            .eq('quiz_slug', quiz_slug);
+          saveError = updateError;
+        } else {
+          // INSERT new row
+          const { error: insertError } = await supabaseClient
+            .from('quizzes')
+            .insert([dbQuiz]);
+          saveError = insertError;
+        }
+
+        if (saveError) {
+          if (statusDiv) {
+            statusDiv.style.color = "#c00";
+            statusDiv.textContent = "❌ Error saving quiz: " + saveError.message;
+          }
+          alert("Supabase save failed: " + saveError.message);
         } else {
           if (statusDiv) {
             statusDiv.style.color = "#0a0";
-            statusDiv.textContent = "✅ Quiz saved to Supabase!";
+            statusDiv.textContent = existingRow
+              ? "✅ Quiz updated in Supabase!"
+              : "✅ Quiz saved to Supabase!";
           }
-          alert("Quiz saved to Supabase!");
+          alert(existingRow ? "Quiz updated in Supabase!" : "Quiz saved to Supabase!");
           await renderApp(); // Refresh archive after save
         }
       };
@@ -429,7 +459,7 @@
                   spellcheck="true"
                   style="
                     direction: ltr !important; 
-                    text-align: left !important;
+                    text-align: inherit;
                     font-size:inherit;
                     color:inherit;
                     font-weight: inherit;
@@ -900,4 +930,3 @@
   });
 
 })();
-
