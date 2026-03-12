@@ -246,26 +246,42 @@
 
       window.onSaveQuiz = async function() {
         const statusDiv = document.getElementById("supabase-status");
-        if (statusDiv) statusDiv.textContent = '';
+        if (statusDiv) statusDiv.textContent = '⏳ Saving...';
         let qz = quizzes[currentQuizIdx];
 
-        let quiz_slug = qz.id;
-        // Always use the correct landing.html URL
-        let quiz_url = `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${quiz_slug}`;
-        let dbQuiz = {
-          quiz_slug,
-          quiz_url,
-          title: qz.title,
-          pages: qz.pages // store all quiz pages/blocks here, as JSON
-        };
+        const quiz_slug = qz.id;
+        const quiz_url = `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${quiz_slug}`;
+        const r2_key = `Quizzes/${quiz_slug}.json`;
+        const WORKER_URL = `https://3c-quiz.3c-innertherapy.workers.dev`;
 
         if (!supabaseClient) {
           showFatalError("Supabase client not loaded yet, please reload and try again.");
           return;
         }
 
-        // Check if quiz already exists, then update or insert explicitly
-        // (avoids RLS issues with anon key upsert on Supabase)
+        // ── Step 1: Save full quiz JSON to R2 via worker ─────────────────────
+        let r2Ok = false;
+        try {
+          const r2Res = await fetch(`${WORKER_URL}/quiz/${quiz_slug}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: qz.id, title: qz.title, pages: qz.pages }, null, 2)
+          });
+          if (!r2Res.ok) {
+            const errText = await r2Res.text();
+            throw new Error(`R2 worker error ${r2Res.status}: ${errText}`);
+          }
+          r2Ok = true;
+        } catch (r2Err) {
+          if (statusDiv) {
+            statusDiv.style.color = "#c00";
+            statusDiv.textContent = "❌ R2 save failed: " + r2Err.message;
+          }
+          alert("R2 save failed: " + r2Err.message);
+          return;
+        }
+
+        // ── Step 2: Update Supabase index row (no pages — R2 carries that) ───
         const { data: existingRow, error: selectError } = await supabaseClient
           .from('quizzes')
           .select('quiz_slug')
@@ -275,7 +291,7 @@
         if (selectError) {
           if (statusDiv) {
             statusDiv.style.color = "#c00";
-            statusDiv.textContent = "❌ Error checking quiz: " + selectError.message;
+            statusDiv.textContent = "❌ Supabase check failed: " + selectError.message;
           }
           alert("Supabase check failed: " + selectError.message);
           return;
@@ -283,35 +299,34 @@
 
         let saveError;
         if (existingRow) {
-          // UPDATE existing row
-          const { error: updateError } = await supabaseClient
+          const { error } = await supabaseClient
             .from('quizzes')
-            .update({ quiz_url, title: qz.title, pages: qz.pages })
+            .update({ quiz_url, title: qz.title, r2_key, pages: qz.pages })
             .eq('quiz_slug', quiz_slug);
-          saveError = updateError;
+          saveError = error;
         } else {
-          // INSERT new row
-          const { error: insertError } = await supabaseClient
+          const { error } = await supabaseClient
             .from('quizzes')
-            .insert([dbQuiz]);
-          saveError = insertError;
+            .insert([{ quiz_slug, quiz_url, title: qz.title, r2_key, pages: qz.pages }]);
+          saveError = error;
         }
 
         if (saveError) {
           if (statusDiv) {
-            statusDiv.style.color = "#c00";
-            statusDiv.textContent = "❌ Error saving quiz: " + saveError.message;
+            statusDiv.style.color = "#e60";
+            // R2 saved fine — only Supabase index failed, not critical
+            statusDiv.textContent = "⚠️ R2 saved ✅ but Supabase index failed: " + saveError.message;
           }
-          alert("Supabase save failed: " + saveError.message);
+          alert("Quiz JSON saved to R2 ✅\nBut Supabase index update failed: " + saveError.message);
         } else {
           if (statusDiv) {
             statusDiv.style.color = "#0a0";
             statusDiv.textContent = existingRow
-              ? "✅ Quiz updated in Supabase!"
-              : "✅ Quiz saved to Supabase!";
+              ? "✅ Quiz updated (R2 + Supabase)"
+              : "✅ Quiz saved (R2 + Supabase)";
           }
-          alert(existingRow ? "Quiz updated in Supabase!" : "Quiz saved to Supabase!");
-          await renderApp(); // Refresh archive after save
+          alert(existingRow ? "Quiz updated in R2 + Supabase!" : "Quiz saved to R2 + Supabase!");
+          await renderApp();
         }
       };
 
