@@ -195,6 +195,10 @@ body {
   box-sizing: border-box;
   z-index: 2;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
 }
 
 .text-block.selected {
@@ -206,23 +210,23 @@ body {
   unicode-bidi: plaintext !important;
   writing-mode: horizontal-tb !important;
   width: 100%;
+  flex: 1 1 auto;
   min-height: 24px;
-  height: auto;
   outline: none;
   background: transparent;
   border: none;
   resize: none;
   font: inherit;
   color: inherit;
-  text-align: left;
-  padding: 0;
+  text-align: inherit;
+  padding: 4px;
   margin: 0;
   overflow-y: auto;
   overflow-wrap: break-word;
   white-space: pre-wrap;
   display: block;
-  vertical-align: top;
   max-height: none;
+  box-sizing: border-box;
 }
 .text-block .block-label {
   position: absolute;
