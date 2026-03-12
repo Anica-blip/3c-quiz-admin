@@ -43,33 +43,34 @@ function generateQuizUrl(slug) {
   return `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${slug}`;
 }
 
+const WORKER_URL = 'https://3c-quiz.3c-innertherapy.workers.dev';
+
 async function loadQuizFromSupabase(slug) {
   try {
+    // Step 1: Get index row from Supabase (slug, title, r2_key)
     const { data, error } = await supabase
       .from('quizzes')
-      .select('*')
+      .select('quiz_slug, title, r2_key')
       .eq('quiz_slug', slug)
       .single();
 
-    if (error || !data) throw new Error("Quiz not found");
+    if (error || !data) throw new Error("Quiz not found in index");
+    if (!data.r2_key) throw new Error("Quiz has no R2 file yet — open in admin and save it first");
 
-    let pages = data.pages;
-    if (typeof pages === "string") {
-      try {
-        pages = JSON.parse(pages);
-      } catch (e) {
-        throw new Error("Pages column is not valid JSON.");
-      }
-    }
+    // Step 2: Fetch full JSON from R2 via worker
+    const r2Res = await fetch(`${WORKER_URL}/quiz/${slug}`);
+    if (!r2Res.ok) throw new Error(`R2 fetch failed (${r2Res.status})`);
 
-    QUIZ_TITLE = data.title || "";
+    const quizJson = await r2Res.json();
+
+    QUIZ_TITLE = data.title || quizJson.title || "";
     QUIZ_SLUG = data.quiz_slug;
     QUIZ_URL = generateQuizUrl(QUIZ_SLUG);
 
     quizData = {
       id: QUIZ_SLUG,
       title: QUIZ_TITLE,
-      pages: pages || [],
+      pages: quizJson.pages || [],
     };
 
     state.page = 0;
@@ -103,27 +104,41 @@ async function saveQuizToSupabase(quizObj) {
   const titleInput = $("#quizTitleInput");
   QUIZ_TITLE = titleInput ? titleInput.value : QUIZ_TITLE;
 
-  // Build payload to save: quiz_slug, title, pages, quiz_url
-  const payload = {
-    quiz_slug: QUIZ_SLUG,
-    quiz_url: generateQuizUrl(QUIZ_SLUG), // always correct landing.html URL!
-    title: QUIZ_TITLE,
-    pages: JSON.stringify(quizObj.pages),
-  };
+  const r2_key = `Quizzes/${QUIZ_SLUG}.json`;
 
+  // Step 1: Save full JSON to R2 via worker
+  try {
+    const r2Res = await fetch(`${WORKER_URL}/quiz/${QUIZ_SLUG}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: QUIZ_SLUG, title: QUIZ_TITLE, pages: quizObj.pages }, null, 2)
+    });
+    if (!r2Res.ok) {
+      const errText = await r2Res.text();
+      throw new Error(`R2 worker error ${r2Res.status}: ${errText}`);
+    }
+  } catch (r2Err) {
+    alert("R2 save failed: " + r2Err.message);
+    return;
+  }
+
+  // Step 2: Update Supabase index row (slug, title, url, r2_key — no pages)
   const { data, error } = await supabase
     .from('quizzes')
-    .upsert([payload], { onConflict: 'quiz_slug' }) // use upsert for update/insert
+    .upsert([{
+      quiz_slug: QUIZ_SLUG,
+      quiz_url: generateQuizUrl(QUIZ_SLUG),
+      title: QUIZ_TITLE,
+      r2_key
+    }], { onConflict: 'quiz_slug' })
     .select();
 
   if (error) {
-    alert("Error saving quiz: " + error.message);
+    alert("Quiz saved to R2 ✅\nBut Supabase index failed: " + error.message);
   } else {
     const quizRow = data && data[0];
-    QUIZ_URL = quizRow
-      ? generateQuizUrl(quizRow.quiz_slug)
-      : "unknown";
-    await fetchQuizArchive(); // refresh archive after insert
+    QUIZ_URL = quizRow ? generateQuizUrl(quizRow.quiz_slug) : generateQuizUrl(QUIZ_SLUG);
+    await fetchQuizArchive();
     render();
     setTimeout(() => {
       const urlField = $("#quizUrlCopyField");
