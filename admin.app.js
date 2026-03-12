@@ -106,7 +106,7 @@
       async function fetchSupabaseQuizzes() {
         const { data, error } = await supabaseClient
           .from('quizzes')
-          .select('quiz_slug, quiz_url, title, pages');
+          .select('quiz_slug, quiz_url, title, r2_key');
         supabaseQuizzes = data || [];
         return supabaseQuizzes;
       }
@@ -191,11 +191,23 @@
         await fetchSupabaseQuizzes();
         const quiz = supabaseQuizzes.find(q => q.quiz_slug === slug);
         if (!quiz) return;
-        // Load into editor
+
+        // Load pages from R2 via worker (pages column no longer exists in Supabase)
+        let pages = [];
+        try {
+          const r2Res = await fetch(`https://3c-quiz.3c-innertherapy.workers.dev/quiz/${slug}`);
+          if (r2Res.ok) {
+            const r2Data = await r2Res.json();
+            pages = r2Data.pages || [];
+          }
+        } catch (e) {
+          console.warn("R2 load failed for", slug, e.message);
+        }
+
         const editorQuiz = {
           id: quiz.quiz_slug,
           title: quiz.title,
-          pages: quiz.pages || []
+          pages: pages
         };
         quizzes.push(editorQuiz);
         currentQuizIdx = quizzes.length-1;
@@ -301,13 +313,13 @@
         if (existingRow) {
           const { error } = await supabaseClient
             .from('quizzes')
-            .update({ quiz_url, title: qz.title, r2_key, pages: qz.pages })
+            .update({ quiz_url, title: qz.title, r2_key })
             .eq('quiz_slug', quiz_slug);
           saveError = error;
         } else {
           const { error } = await supabaseClient
             .from('quizzes')
-            .insert([{ quiz_slug, quiz_url, title: qz.title, r2_key, pages: qz.pages }]);
+            .insert([{ quiz_slug, quiz_url, title: qz.title, r2_key }]);
           saveError = error;
         }
 
