@@ -92,7 +92,7 @@ body {
   font-family: 'Open Sans', sans-serif;
   font-size: 22px;
   font-weight: 300;
-  color: var(--text-accent);
+  color: var(--accent-light);
   letter-spacing: 0.4px;
   flex: 1;
   white-space: nowrap;
@@ -149,6 +149,18 @@ body {
 .topbar-actions .tbtn.tbtn-outline:hover {
   background: var(--surface-3);
   border-color: var(--accent-light);
+}
+
+.topbar-actions .tbtn.tbtn-orange {
+  background: #c2410c;
+  color: #fff;
+  border: none;
+}
+
+.topbar-actions .tbtn.tbtn-orange:hover {
+  background: #ea580c;
+  box-shadow: 0 0 14px rgba(234, 88, 12, 0.4);
+  transform: translateY(-1px);
 }
 
 /* ========== SUBBAR ========== */
@@ -373,8 +385,9 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 4px;
-  color: var(--text-muted);
-  font-size: 0.72em;
+  color: #ffffff;
+  font-size: 0.82em;
+  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -471,8 +484,7 @@ body {
   border: 2px dashed rgba(168, 85, 247, 0.6);
   background: rgba(255,255,255,0.08);
   cursor: move;
-  resize: both;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
   z-index: 2;
   padding: 0;
@@ -493,10 +505,8 @@ body {
   unicode-bidi: plaintext !important;
   writing-mode: horizontal-tb !important;
   width: 100%;
-  /* Use flex-start not stretch — prevents text drifting to vertical center in tall blocks */
-  flex: 0 0 auto;
-  min-height: 100%;
-  align-self: flex-start;
+  flex: 1 1 auto;
+  min-height: 24px;
   outline: none;
   background: transparent;
   border: none;
@@ -517,18 +527,20 @@ body {
 
 .text-block .block-label {
   position: absolute;
-  top: -18px;
-  left: 0;
-  font-size: 0.7em;
-  background: rgba(124, 58, 237, 0.9);
+  top: 2px;
+  left: 2px;
+  font-size: 0.65em;
+  background: rgba(124, 58, 237, 0.88);
   color: #fff;
-  border-radius: 3px 3px 0 0;
+  border-radius: 3px;
   padding: 0 5px;
   pointer-events: none;
   font-family: 'Outfit', sans-serif;
   font-weight: 600;
   letter-spacing: 0.4px;
   white-space: nowrap;
+  z-index: 4;
+  line-height: 1.5;
 }
 
 .text-block .resize-handle {
