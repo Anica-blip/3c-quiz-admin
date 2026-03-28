@@ -142,7 +142,7 @@
       // Render quiz archive table from Supabase data, with Edit button, sorted by quiz number ascending
       async function renderQuizArchive() {
         await fetchSupabaseQuizzes();
-        if (!supabaseQuizzes.length) return `<div>No quizzes found in Supabase.</div>`;
+        if (!supabaseQuizzes.length) return `<div style="color:var(--text-muted);padding:20px;">No quizzes found in Supabase.</div>`;
 
         // Sort by quiz number ascending (01, 02, 03...)
         const sortedQuizzes = [...supabaseQuizzes].sort((a, b) => {
@@ -150,32 +150,31 @@
           return getNum(a) - getNum(b);
         });
 
-        // DISTINCT section with dark purple background and full width for easier reading
         return `
-          <section id="quiz-archive-section" style="margin-top:60px;">
-            <div style="background: #32005e; color: #fff; border-radius: 18px; padding: 32px 32px 40px 32px; box-shadow: 0 6px 24px rgba(50,0,94,0.28); max-width: 1300px; margin: 0 auto; margin-bottom: 48px; border: 2px solid #430086;">
-              <h2 style="font-size:2em;font-weight:800;margin:0 0 26px 0;letter-spacing:1px;">Quiz Archive</h2>
-              <table style="width:100%;border-collapse:collapse;background:#2b004d;color:#fff;border-radius:8px;overflow:hidden;box-shadow:0 3px 12px #0002;">
+          <section id="quiz-archive-section">
+            <div>
+              <h2>Quiz Archive</h2>
+              <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;">
                 <thead>
-                  <tr style="background:#540099;">
-                    <th style="text-align:left;padding:14px 16px;font-size:1.15em;">Edit</th>
-                    <th style="text-align:left;padding:14px 16px;font-size:1.15em;">Quiz #</th>
-                    <th style="text-align:left;padding:14px 16px;font-size:1.15em;">Title</th>
-                    <th style="text-align:left;padding:14px 16px;font-size:1.15em;">URL</th>
+                  <tr>
+                    <th style="text-align:left;">Edit</th>
+                    <th style="text-align:left;">Quiz #</th>
+                    <th style="text-align:left;">Title</th>
+                    <th style="text-align:left;">URL</th>
                   </tr>
                 </thead>
                 <tbody>
                 ${sortedQuizzes.map(q => `
-                  <tr style="border-bottom:1px solid #430086;">
-                    <td style="padding:12px 16px;">
-                      <button onclick="window.onLoadQuizFromArchiveBySlug('${q.quiz_slug}')" style="padding:4px 16px;border-radius:6px;background:#0070f3;color:#fff;font-weight:600;">Edit</button>
+                  <tr>
+                    <td>
+                      <button onclick="window.onLoadQuizFromArchiveBySlug('${q.quiz_slug}')" style="background:#7c3aed;color:#fff;font-weight:600;">Edit</button>
                     </td>
-                    <td style="padding:12px 16px;font-size:1.07em;">${q.quiz_slug}</td>
-                    <td style="padding:12px 16px;font-size:1.07em;">${q.title || ''}</td>
-                    <td style="padding:12px 16px;">
-                      <input type="text" value="${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}" readonly style="width:70%;background:#eee;color:#222;border:none;border-radius:6px;padding:4px;">
-                      <button onclick="navigator.clipboard.writeText('${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}')" style="margin-left:6px;padding:4px 12px;border-radius:4px;background:#fff;color:#540099;font-weight:700;">Copy</button>
-                      <a href="${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}" target="_blank" style="margin-left:10px;color:#ffe;font-weight:700;">Open</a>
+                    <td>${q.quiz_slug}</td>
+                    <td>${q.title || ''}</td>
+                    <td>
+                      <input type="text" value="${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}" readonly style="width:60%;">
+                      <button onclick="navigator.clipboard.writeText('${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}')" style="background:#a855f7;color:#fff;margin-left:6px;">Copy</button>
+                      <a href="${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}" target="_blank">Open ↗</a>
                     </td>
                   </tr>
                 `).join('')}
@@ -326,13 +325,12 @@
         if (saveError) {
           if (statusDiv) {
             statusDiv.style.color = "#e60";
-            // R2 saved fine — only Supabase index failed, not critical
             statusDiv.textContent = "⚠️ R2 saved ✅ but Supabase index failed: " + saveError.message;
           }
           alert("Quiz JSON saved to R2 ✅\nBut Supabase index update failed: " + saveError.message);
         } else {
           if (statusDiv) {
-            statusDiv.style.color = "#0a0";
+            statusDiv.style.color = "#22c55e";
             statusDiv.textContent = existingRow
               ? "✅ Quiz updated (R2 + Supabase)"
               : "✅ Quiz saved (R2 + Supabase)";
@@ -459,6 +457,12 @@
         }
       };
 
+      // ── Close drawer (deselect block) ───────────────────────────────────────
+      window.onCloseDrawer = function() {
+        selectedBlockIdx = -1;
+        renderApp();
+      };
+
       function renderCanvas(page) {
         if (!page) return `<div class="editor-canvas"></div>`;
         return `
@@ -512,6 +516,69 @@
         `;
       }
 
+      // ── Block settings rendered inside the slide-out drawer ────────────────
+      function renderBlockSettingsDrawer(page) {
+        let b = (page.blocks||[])[selectedBlockIdx];
+        if (!b) return `<div class="drawer-empty">Click any block on the canvas<br>to edit its settings here.</div>`;
+        return `
+          <div class="sf-info-card">
+            <code>${b.label||b.type}</code><br>
+            W: <code>${b.w}</code> &times; H: <code>${b.h}</code><br>
+            X: <code>${b.x}</code> &times; Y: <code>${b.y}</code>
+          </div>
+
+          <div class="sf-group">
+            <label class="sf-label">Font Size (px)</label>
+            <input class="sf-input" type="number" min="10" max="64" value="${b.size}"
+              onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
+          </div>
+
+          <div class="sf-group">
+            <label class="sf-label">Text Color</label>
+            <input class="sf-color" type="color" value="${b.color}"
+              onchange="onBlockColor(${selectedBlockIdx},this.value)">
+          </div>
+
+          <div class="sf-row">
+            <input class="sf-checkbox" type="checkbox" id="sf-bold-check" ${b.bold ? 'checked' : ''}
+              onchange="onBlockBold(${selectedBlockIdx},this.checked)">
+            <label class="sf-check-label" for="sf-bold-check">Bold text</label>
+          </div>
+
+          <div class="sf-group">
+            <label class="sf-label">Text Align</label>
+            <select class="sf-select" onchange="onBlockAlign(${selectedBlockIdx},this.value)">
+              <option value="left" ${b.align==="left"?"selected":""}>Left</option>
+              <option value="center" ${b.align==="center"?"selected":""}>Center</option>
+            </select>
+          </div>
+
+          <div class="sf-grid2">
+            <div class="sf-group">
+              <label class="sf-label">Width (px)</label>
+              <input class="sf-input" type="number" min="80" max="${CANVAS_W-16}" value="${b.w}"
+                onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
+            </div>
+            <div class="sf-group">
+              <label class="sf-label">Height (px)</label>
+              <input class="sf-input" type="number" min="24" max="${CANVAS_H}" value="${b.h}"
+                onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
+            </div>
+            <div class="sf-group">
+              <label class="sf-label">X Position</label>
+              <input class="sf-input" type="number" min="0" max="${CANVAS_W-20}" value="${b.x}"
+                onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
+            </div>
+            <div class="sf-group">
+              <label class="sf-label">Y Position</label>
+              <input class="sf-input" type="number" min="0" max="${CANVAS_H-20}" value="${b.y}"
+                onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
+            </div>
+          </div>
+        `;
+      }
+
+      // ── Legacy renderBlockSettings kept for internal reference (not used in UI) ──
       function renderBlockSettings(page) {
         let b = (page.blocks||[])[selectedBlockIdx];
         if (!b) return `<div style="margin-top:20px;">Select a block to edit its settings here.</div>`;
@@ -618,7 +685,7 @@
         };
       }
 
-      // Main render function, async for quiz archive
+      // ── Main render function ────────────────────────────────────────────────
       async function renderApp() {
         try {
           const app = document.getElementById('app');
@@ -626,13 +693,47 @@
           const quiz = quizzes[currentQuizIdx] || blankQuiz();
           const pages = quiz.pages || [];
           const page = pages[selectedPageIdx] || {};
+          const activeBlock = (page.blocks||[])[selectedBlockIdx];
 
-          // --- Editor UI ---
           app.innerHTML = `
-            <div class="row-flex">
-              <div class="sidebar">
+            <!-- ── TOPBAR ── -->
+            <div class="topbar">
+              <span class="app-title">3c-<strong>quiz</strong>-admin</span>
+              <span class="topbar-credit">Built by Claude × Chef Anica · 3C Thread To Success</span>
+              <div class="topbar-actions">
+                <button class="tbtn" onclick="onSaveQuiz()">💾 Save Quiz</button>
+                <button class="tbtn tbtn-outline" onclick="onExportQuiz()">⬇ Export JSON</button>
+                <button class="tbtn tbtn-outline" onclick="onImportQuiz()">⬆ Import JSON</button>
+              </div>
+            </div>
+
+            <!-- ── SUBBAR ── -->
+            <div class="subbar">
+              <button class="sbtn" onclick="onNewQuizTab()">+ New Quiz</button>
+              <div class="subbar-sep"></div>
+              <span class="subbar-label">Quiz ID:</span>
+              <span class="quiz-id-badge">${quiz.id}</span>
+              <input type="text" value="${quiz.title}" style="width:155px;" onchange="onQuizTitleChange(this.value)" placeholder="Quiz title">
+              <div class="subbar-sep"></div>
+              <div class="page-nav-wrap">
+                <button class="sbtn" onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''}>←</button>
+                <span class="page-nav-text">Page ${selectedPageIdx+1} / ${pages.length}</span>
+                <button class="sbtn" onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''}>→</button>
+              </div>
+              <button class="sbtn" onclick="onSavePage()">💾 Save Page</button>
+              <div class="subbar-sep"></div>
+              <span class="subbar-label">BG:</span>
+              <input type="text" value="${page.bg||''}" style="width:126px;" onchange="onBgChange(this.value)" placeholder="static/1.png">
+              <button class="sbtn" onclick="onPickBg()">Pick Image</button>
+            </div>
+
+            <!-- ── EDITOR LAYOUT (3-column) ── -->
+            <div class="editor-layout">
+
+              <!-- LEFT: Pages sidebar -->
+              <div class="sidebar-left">
                 <div class="page-list">
-                  <strong>Pages</strong>
+                  <div class="sidebar-section-title">Pages</div>
                   <ul>
                     ${pages.map((p, i) => `
                       <li>
@@ -640,64 +741,59 @@
                           <img class="page-img-thumb" src="${p.bg || ''}" alt="" onerror="this.style.display='none';">
                           <span class="img-filename">${(p.bg||'').replace('static/','') || `Page ${i+1}`}</span>
                         </button>
-                        <button onclick="onMovePageUpSingle(${i})" ${i===0?'disabled':''} title="Move Up">⬆️</button>
-                        <button onclick="onMovePageDownSingle(${i})" ${i===pages.length-1?'disabled':''} title="Move Down">⬇️</button>
-                        <button onclick="onRemovePage(${i})" class="danger">✕</button>
+                        <button class="page-ctrl-btn" onclick="onMovePageUpSingle(${i})" ${i===0?'disabled':''} title="Move Up">↑</button>
+                        <button class="page-ctrl-btn" onclick="onMovePageDownSingle(${i})" ${i===pages.length-1?'disabled':''} title="Move Down">↓</button>
+                        <button class="page-ctrl-btn danger" onclick="onRemovePage(${i})" title="Remove">✕</button>
                       </li>
                     `).join('')}
                   </ul>
-                  <div class="page-actions">
-                    <button onclick="onAddPage()">+ Add Page</button>
-                    <button onclick="onDuplicatePage()">Duplicate</button>
+                  <div class="page-actions-row">
+                    <button class="pabtn" onclick="onAddPage()">+ Add Page</button>
+                    <button class="pabtn" onclick="onDuplicatePage()">Duplicate</button>
                   </div>
-                </div>
-                <div class="block-controls">
-                  <strong>Add Block</strong>
-                  <button onclick="onAddBlock('title')">Title</button>
-                  <button onclick="onAddBlock('desc')">Description</button>
-                  <button onclick="onAddBlock('question')">Question</button>
-                  <button onclick="onAddAnswerBlock('A')">Answer A</button>
-                  <button onclick="onAddAnswerBlock('B')">Answer B</button>
-                  <button onclick="onAddAnswerBlock('C')">Answer C</button>
-                  <button onclick="onAddAnswerBlock('D')">Answer D</button>
-                  <button onclick="onRemoveAllBlocks()" class="danger">Remove All</button>
-                  <button onclick="onRemoveBlockSidebar()" class="danger" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
                 </div>
               </div>
-              <div class="mainpanel">
-                <div class="header">
-                  <h1>3c-quiz-admin</h1>
-                  <button onclick="onNewQuizTab()">New Quiz</button>
-                  <span><b>Quiz ID:</b> <span style="background:#fe0;padding:2px 6px;border-radius:4px">${quiz.id}</span></span>
-                  <input type="text" value="${quiz.title}" style="width:180px;" onchange="onQuizTitleChange(this.value)">
-                </div>
-                <div style="margin-bottom:8px;display:flex;align-items:center;gap:12px;">
-                  <button onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''} style="min-width:32px;">&larr;</button>
-                  <span style="margin:0;">Page ${selectedPageIdx+1} / ${pages.length}</span>
-                  <button onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''} style="min-width:32px;">&rarr;</button>
-                  <button onclick="onSavePage()" style="margin-left:12px;">💾 Save Page</button>
-                  <label style="margin-left:20px;">Background:
-                    <input type="text" value="${page.bg||''}" style="width:160px;" onchange="onBgChange(this.value)" placeholder="static/3a.png">
-                  </label>
-                  <button onclick="onPickBg()">Pick Image</button>
-                </div>
-                <div class="editor-canvas-wrap">
-                  <div>
-                    ${renderCanvas(page)}
-                  </div>
-                  <div>
-                    ${renderBlockSettings(page)}
-                    <div class="save-area">
-                      <button onclick="onSaveQuiz()">💾 Save Quiz</button>
-                      <button onclick="onExportQuiz()">⬇ Export JSON</button>
-                      <button onclick="onImportQuiz()">⬆ Import JSON</button>
-                      <div id="supabase-status" style="margin-top:10px;font-size:0.98em;color:#0a0"></div>
-                    </div>
-                  </div>
-                </div>
+
+              <!-- CENTER: Canvas -->
+              <div class="canvas-area">
+                ${renderCanvas(page)}
+              </div>
+
+              <!-- RIGHT: Add Block panel -->
+              <div class="block-add-panel">
+                <div class="sidebar-section-title">Add Block</div>
+                <button class="add-block-btn" onclick="onAddBlock('title')">Title</button>
+                <button class="add-block-btn" onclick="onAddBlock('desc')">Description</button>
+                <button class="add-block-btn" onclick="onAddBlock('question')">Question</button>
+                <button class="add-block-btn" onclick="onAddAnswerBlock('A')">Answer A</button>
+                <button class="add-block-btn" onclick="onAddAnswerBlock('B')">Answer B</button>
+                <button class="add-block-btn" onclick="onAddAnswerBlock('C')">Answer C</button>
+                <button class="add-block-btn" onclick="onAddAnswerBlock('D')">Answer D</button>
+                <div class="add-block-divider"></div>
+                <button class="add-block-danger" onclick="onRemoveAllBlocks()">Remove All</button>
+                <button class="add-block-danger" onclick="onRemoveBlockSidebar()" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
+              </div>
+
+            </div>
+
+            <!-- ── SETTINGS DRAWER (slide-out, fixed position) ── -->
+            <div class="settings-drawer ${selectedBlockIdx >= 0 ? 'open' : ''}">
+              <div class="drawer-header">
+                <span class="drawer-title">
+                  ⚙ Block Settings
+                  ${activeBlock ? `<span class="drawer-block-name">— ${activeBlock.label || activeBlock.type}</span>` : ''}
+                </span>
+                <button class="drawer-close" onclick="onCloseDrawer()" title="Close settings">✕</button>
+              </div>
+              <div class="drawer-body">
+                ${renderBlockSettingsDrawer(page)}
               </div>
             </div>
-            <!-- ARCHIVE SECTION BELOW EDITOR, NOT IN FLEX ROW -->
+
+            <!-- ── STATUS BAR ── -->
+            <div id="supabase-status"></div>
+
+            <!-- ── QUIZ ARCHIVE (below editor) ── -->
             <div id="quiz-archive-wrap" style="width:100%;"></div>
           `;
 
@@ -724,7 +820,7 @@
             }
           }, 100);
 
-          // Render quiz archive BELOW the editor/app, as a new section (not inside the flex row)
+          // Render quiz archive BELOW the editor/app
           const archiveDiv = document.getElementById('quiz-archive-wrap');
           if (archiveDiv) archiveDiv.innerHTML = await renderQuizArchive();
         } catch(e) {
@@ -739,7 +835,6 @@
         let coords = getCoordinatesForBackground(page.bg, `answer${letter}`);
         
         if (!coords) {
-          // Fallback coordinates
           coords = {
             "A": { x: 31, y: 180 },
             "B": { x: 31, y: 248 },
@@ -861,23 +956,23 @@
         // Save with debounce - only save after user stops typing for 300ms
         textInputTimeout = setTimeout(() => {
           saveQuizzes();
-          // Only update block settings if visible - don't re-render entire app
+          // Only update drawer settings if visible
           updateBlockSettingsOnly(bi);
         }, 300);
       };
       
-      // Helper function to update just the block settings without full re-render
+      // Helper: update just the drawer settings content without full re-render
       function updateBlockSettingsOnly(blockIndex) {
         if (selectedBlockIdx === blockIndex) {
           const page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-          const blockSettingsArea = document.querySelector('.editor-canvas-wrap > div:nth-child(2) > div:nth-child(1)');
-          if (blockSettingsArea) {
-            blockSettingsArea.innerHTML = renderBlockSettings(page).replace(/<div[^>]*>/, '').replace(/<\/div>$/, '');
+          const drawerBody = document.querySelector('.drawer-body');
+          if (drawerBody) {
+            drawerBody.innerHTML = renderBlockSettingsDrawer(page);
           }
         }
       }
 
-      // Initialization logic to start up the editor and archive
+      // Initialization
       (async function init() {
         quizzes = loadLocalQuizzes();
         if (quizzes.length === 0) {
@@ -930,7 +1025,7 @@
       };
 
       window.showCredits = function() {
-        alert("3c-quiz-admin by Anica-blip\nGitHub: anica-blip/3c-quiz");
+        alert("3c-quiz-admin by Anica-blip\nBuilt by Claude (Anthropic) × Chef Anica\n3C Thread To Success");
       };
 
       window.debugQuizAdmin = function() {
@@ -944,12 +1039,10 @@
         showFatalError('Unhandled promise rejection: ' + (event.reason?.message || event.reason));
       });
 
-      window.QuizAdminVersion = "v3.1.1";
+      window.QuizAdminVersion = "v3.2.0";
 
-      // Final log
-      console.log("3c-quiz-admin loaded and ready.");
-      console.log("3c-quiz-admin: All logic loaded. Ready for use.");
-      console.log("3c-quiz-admin: Initialization complete.");
+      console.log("3c-quiz-admin v3.2.0 loaded — Dark Purple Edition.");
+      console.log("Built by Claude (Anthropic) × Chef Anica · 3C Thread To Success");
 
     } catch(e) {
       showFatalError(e.message || e);
