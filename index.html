@@ -3,83 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quiz Admin Editor</title>
-<link rel="stylesheet" href="admin.css">
-<script src="admin.app.js"></script>
-  <!-- Supabase JS client -->
+  <title>3c-quiz-admin · Dark Purple Edition</title>
+
+  <!-- Styles — Google Fonts loaded via @import inside admin.css -->
+  <link rel="stylesheet" href="admin.css">
+
+  <!-- Supabase JS client (must load before admin_app.js) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-  <style>
-    /* Additional text direction fixes */
-    * {
-      direction: ltr !important;
-      text-align: left;
-    }
-    input[type="text"], textarea, [contenteditable] {
-      direction: ltr !important;
-      text-align: left !important;
-      unicode-bidi: normal !important;
-    }
-    /* Ensure proper text input behavior */
-    .text-block .block-content {
-      direction: ltr !important;
-      text-align: left !important;
-      unicode-bidi: normal !important;
-      writing-mode: horizontal-tb !important;
-    }
-  </style>
 </head>
 <body dir="ltr">
-  <!-- Main application container: used by admin.app.js -->
+
+  <!-- Main application container — rendered entirely by admin_app.js -->
   <div id="app" dir="ltr"></div>
-  <!-- Fatal error display, only shown if JS can't render UI -->
-  <div id="fatal-error" style="display:none;color:#c00;font-size:1.2em;margin:32px;"></div>
+
+  <!-- Fatal error fallback — only shown if JS fails to mount -->
+  <div id="fatal-error" style="display:none;color:#f87171;font-size:1.2em;margin:32px;font-family:sans-serif;"></div>
+
   <script>
-    // Defensive JS: check for #app container before loading app logic
+    // Defensive check before app loads
     if (!document.getElementById('app')) {
-      document.getElementById('fatal-error').innerText = "Fatal Error: #app container not found in HTML.";
-      document.getElementById('fatal-error').style.display = "block";
-      throw new Error("Fatal Error: #app container not found in HTML.");
+      const el = document.getElementById('fatal-error');
+      el.innerText = 'Fatal Error: #app container not found.';
+      el.style.display = 'block';
+      throw new Error('Fatal Error: #app container not found.');
     }
-    
-    // Force LTR direction globally
+
+    // Enforce LTR globally — counteracts any browser/OS RTL auto-detection
     document.documentElement.setAttribute('dir', 'ltr');
     document.body.setAttribute('dir', 'ltr');
-    
-    // Additional text direction enforcement
-    document.addEventListener('DOMContentLoaded', function() {
-      // Force all input elements to be LTR
-      const styleSheet = document.createElement('style');
-      styleSheet.textContent = `
-        input, textarea, [contenteditable="true"] {
-          direction: ltr !important;
-          text-align: left !important;
-          unicode-bidi: normal !important;
-        }
-        .text-block .block-content {
-          direction: ltr !important;
-          text-align: left !important;
-        }
-      `;
-      document.head.appendChild(styleSheet);
-    });
-    
-    // Override any RTL behavior
-    document.addEventListener('keydown', function(e) {
-      if (e.target.contentEditable === 'true' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-        e.target.style.direction = 'ltr';
-        e.target.style.textAlign = 'left';
+
+    // Keep all inputs LTR on keydown and input events
+    function enforceLTR(e) {
+      const t = e.target;
+      if (t.contentEditable === 'true' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') {
+        t.style.direction   = 'ltr';
+        t.style.textAlign   = 'left';
+        t.style.unicodeBidi = 'normal';
       }
-    });
-    
-    document.addEventListener('input', function(e) {
-      if (e.target.contentEditable === 'true' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-        e.target.style.direction = 'ltr';
-        e.target.style.textAlign = 'left';
-      }
-    });
+    }
+    document.addEventListener('keydown', enforceLTR);
+    document.addEventListener('input',   enforceLTR);
   </script>
-  <!-- Admin app logic should reference #app and handle quiz numbering via Supabase -->
+
+  <!-- Admin app — single load, at end of body -->
   <script src="admin.app.js"></script>
+
 </body>
 </html>
-
