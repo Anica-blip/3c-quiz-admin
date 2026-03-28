@@ -32,12 +32,12 @@
     document.documentElement.setAttribute('dir', 'ltr');
     document.body.setAttribute('dir', 'ltr');
 
-    // Keep all inputs LTR on keydown and input events
+    // Keep all inputs LTR on keydown and input events.
+    // Only enforce direction — NOT textAlign, so center-aligned blocks work correctly.
     function enforceLTR(e) {
       const t = e.target;
       if (t.contentEditable === 'true' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') {
         t.style.direction   = 'ltr';
-        t.style.textAlign   = 'left';
         t.style.unicodeBidi = 'normal';
       }
     }
