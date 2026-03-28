@@ -96,6 +96,13 @@
       // manually click the "⚙ Block Settings" button in the panel.
       let drawerOpen = false;
       let drawerDismissed = false;
+
+      // Module-level drag state — must live outside attachCanvasEvents
+      // so they are NOT reset when renderApp() re-creates the DOM.
+      let dragIdx = -1;
+      let dragResizing = false;
+      let dragStartX = 0, dragStartY = 0;
+      let dragStartBlock = null;
       
       // Add debounce for text input to prevent lag
       let textInputTimeout = null;
@@ -646,56 +653,85 @@
       function attachCanvasEvents() {
         const canvas = document.getElementById('editor-canvas');
         if (!canvas) return;
-        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
-        let dragIdx = -1, resizing = false, startX, startY, startBlock = null;
+        const page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+
         canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
+          // Drag: start on the block wrapper — but NOT on the contenteditable or resize handle
           blockEl.onmousedown = e => {
-            if (e.target.classList.contains('block-label') ||
-                e.target.classList.contains('block-content') ||
+            if (e.target.classList.contains('block-content') ||
                 e.target.classList.contains('resize-handle')) return;
-            dragIdx = bi;
-            resizing = false;
-            startX = e.clientX;
-            startY = e.clientY;
-            startBlock = {...page.blocks[bi]};
-            selectedBlockIdx = bi;
+            dragIdx     = bi;
+            dragResizing = false;
+            dragStartX  = e.clientX;
+            dragStartY  = e.clientY;
+            dragStartBlock = { ...page.blocks[bi] };
             document.body.style.userSelect = "none";
             e.preventDefault();
           };
-          let resizeHandle = blockEl.querySelector('.resize-handle');
+
+          // Resize: start on the resize handle
+          const resizeHandle = blockEl.querySelector('.resize-handle');
           if (resizeHandle) {
             resizeHandle.onmousedown = e => {
-              dragIdx = bi;
-              resizing = true;
-              startX = e.clientX;
-              startY = e.clientY;
-              startBlock = {...page.blocks[bi]};
+              dragIdx      = bi;
+              dragResizing = true;
+              dragStartX   = e.clientX;
+              dragStartY   = e.clientY;
+              dragStartBlock = { ...page.blocks[bi] };
               document.body.style.userSelect = "none";
               e.stopPropagation();
               e.preventDefault();
             };
           }
         });
+
+        // Mousemove: update data model + DOM directly — NO renderApp() call.
+        // renderApp() destroys the canvas on every call, which kills drag state.
         window.onmousemove = e => {
-          if (dragIdx===-1) return;
-          let block = page.blocks[dragIdx];
+          if (dragIdx === -1) return;
+          const block = page.blocks[dragIdx];
           if (!block) return;
-          if (resizing) {
-            let dw = e.clientX-startX, dh = e.clientY-startY;
-            block.w = Math.max(80, Math.min(CANVAS_W-16, startBlock.w+dw));
-            block.h = Math.max(24, startBlock.h+dh);
+
+          // Re-query the element each move (safe after any re-render)
+          const currentCanvas = document.getElementById('editor-canvas');
+          const domBlock = currentCanvas
+            ? currentCanvas.querySelectorAll('.text-block')[dragIdx]
+            : null;
+
+          if (dragResizing) {
+            const dw = e.clientX - dragStartX;
+            const dh = e.clientY - dragStartY;
+            block.w = Math.max(80, Math.min(CANVAS_W - 16, dragStartBlock.w + dw));
+            block.h = Math.max(24, dragStartBlock.h + dh);
+            if (domBlock) {
+              domBlock.style.width  = block.w + 'px';
+              domBlock.style.height = block.h + 'px';
+            }
           } else {
-            let dx = e.clientX-startX, dy = e.clientY-startY;
-            block.x = Math.max(0, Math.min(CANVAS_W-block.w, startBlock.x+dx));
-            block.y = Math.max(0, Math.min(CANVAS_H-block.h, startBlock.y+dy));
+            const dx = e.clientX - dragStartX;
+            const dy = e.clientY - dragStartY;
+            block.x = Math.max(0, Math.min(CANVAS_W - block.w, dragStartBlock.x + dx));
+            block.y = Math.max(0, Math.min(CANVAS_H - block.h, dragStartBlock.y + dy));
+            if (domBlock) {
+              domBlock.style.left = block.x + 'px';
+              domBlock.style.top  = block.y + 'px';
+            }
           }
-          saveQuizzes();
-          renderApp();
         };
-        window.onmouseup = e => {
-          dragIdx = -1;
-          resizing = false;
+
+        // Mouseup: drag ends — save data, update drawer coords only (no full re-render)
+        window.onmouseup = () => {
+          if (dragIdx === -1) return;
+          dragIdx      = -1;
+          dragResizing = false;
           document.body.style.userSelect = "";
+          saveQuizzes();
+          // Refresh drawer position/size readout without destroying the canvas
+          if (drawerOpen && selectedBlockIdx >= 0) {
+            const pg = quizzes[currentQuizIdx].pages[selectedPageIdx];
+            const drawerBody = document.querySelector('.drawer-body');
+            if (drawerBody) drawerBody.innerHTML = renderBlockSettingsDrawer(pg);
+          }
         };
       }
 
@@ -937,6 +973,9 @@
       };
 
       window.onSelectBlock = function(idx) {
+        // If this block is already selected, do NOT re-render.
+        // Re-rendering destroys the contenteditable and kills typing.
+        if (selectedBlockIdx === idx) return;
         selectedBlockIdx = idx;
         // Only auto-open drawer if user hasn't explicitly closed it
         if (!drawerDismissed) {
@@ -969,9 +1008,9 @@
         if (b.maxlen) text = text.slice(0, b.maxlen);
         b.text = text;
         
-        // FORCE LTR direction
+        // Enforce LTR direction only — do NOT override text-align
+        // (block's alignment is controlled by its own settings)
         el.style.direction = 'ltr';
-        el.style.textAlign = 'left';
         
         // Clear previous timeout
         if (textInputTimeout) {
