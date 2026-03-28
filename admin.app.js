@@ -752,7 +752,7 @@
               <span class="topbar-credit">Built by Claude × Chef Anica · 3C Thread To Success</span>
               <div class="topbar-actions">
                 <button class="tbtn" onclick="onSaveQuiz()">💾 Save Quiz</button>
-                <button class="tbtn tbtn-outline" onclick="onExportQuiz()">⬇ Export JSON</button>
+                <button class="tbtn tbtn-orange" onclick="onExportQuiz()">⬇ Export JSON</button>
                 <button class="tbtn tbtn-outline" onclick="onImportQuiz()">⬆ Import JSON</button>
               </div>
             </div>
