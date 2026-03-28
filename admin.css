@@ -91,7 +91,7 @@ body {
 .app-title {
   font-family: 'Open Sans', sans-serif;
   font-size: 22px;
-  font-weight: 300;
+  font-weight: 700;
   color: var(--accent-light);
   letter-spacing: 0.4px;
   flex: 1;
@@ -99,7 +99,7 @@ body {
 }
 
 .app-title strong {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent-light);
 }
 
@@ -526,21 +526,7 @@ body {
 }
 
 .text-block .block-label {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  font-size: 0.65em;
-  background: rgba(124, 58, 237, 0.88);
-  color: #fff;
-  border-radius: 3px;
-  padding: 0 5px;
-  pointer-events: none;
-  font-family: 'Outfit', sans-serif;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  white-space: nowrap;
-  z-index: 4;
-  line-height: 1.5;
+  display: none;
 }
 
 .text-block .resize-handle {
