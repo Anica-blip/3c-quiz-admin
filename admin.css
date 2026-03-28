@@ -493,8 +493,10 @@ body {
   unicode-bidi: plaintext !important;
   writing-mode: horizontal-tb !important;
   width: 100%;
-  flex: 1 1 auto;
-  min-height: 24px;
+  /* Use flex-start not stretch — prevents text drifting to vertical center in tall blocks */
+  flex: 0 0 auto;
+  min-height: 100%;
+  align-self: flex-start;
   outline: none;
   background: transparent;
   border: none;
@@ -510,6 +512,7 @@ body {
   display: block;
   max-height: none;
   box-sizing: border-box;
+  vertical-align: top;
 }
 
 .text-block .block-label {
