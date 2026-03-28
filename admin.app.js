@@ -90,6 +90,12 @@
       let currentQuizIdx = 0;
       let selectedPageIdx = 0;
       let selectedBlockIdx = -1;
+
+      // Drawer state — opens automatically on first block click.
+      // Once user closes it (X button), it stays closed until they
+      // manually click the "⚙ Block Settings" button in the panel.
+      let drawerOpen = false;
+      let drawerDismissed = false;
       
       // Add debounce for text input to prevent lag
       let textInputTimeout = null;
@@ -457,9 +463,17 @@
         }
       };
 
-      // ── Close drawer (deselect block) ───────────────────────────────────────
+      // ── Close drawer — stays closed until user manually reopens ────────────
       window.onCloseDrawer = function() {
-        selectedBlockIdx = -1;
+        drawerOpen = false;
+        drawerDismissed = true;
+        renderApp();
+      };
+
+      // ── Manually reopen drawer ──────────────────────────────────────────────
+      window.onOpenDrawer = function() {
+        drawerOpen = true;
+        drawerDismissed = false;
         renderApp();
       };
 
@@ -772,18 +786,25 @@
                 <div class="add-block-divider"></div>
                 <button class="add-block-danger" onclick="onRemoveAllBlocks()">Remove All</button>
                 <button class="add-block-danger" onclick="onRemoveBlockSidebar()" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
+                <div class="add-block-divider"></div>
+                <button class="settings-open-btn"
+                  onclick="onOpenDrawer()"
+                  ${selectedBlockIdx < 0 ? 'disabled' : ''}
+                  title="${selectedBlockIdx < 0 ? 'Select a block first' : 'Open block settings panel'}">
+                  ⚙ Block Settings
+                </button>
               </div>
 
             </div>
 
             <!-- ── SETTINGS DRAWER (slide-out, fixed position) ── -->
-            <div class="settings-drawer ${selectedBlockIdx >= 0 ? 'open' : ''}">
+            <div class="settings-drawer ${drawerOpen && selectedBlockIdx >= 0 ? 'open' : ''}">
               <div class="drawer-header">
                 <span class="drawer-title">
                   ⚙ Block Settings
                   ${activeBlock ? `<span class="drawer-block-name">— ${activeBlock.label || activeBlock.type}</span>` : ''}
                 </span>
-                <button class="drawer-close" onclick="onCloseDrawer()" title="Close settings">✕</button>
+                <button class="drawer-close" onclick="onCloseDrawer()" title="Close — won't reopen automatically">✕</button>
               </div>
               <div class="drawer-body">
                 ${renderBlockSettingsDrawer(page)}
@@ -917,6 +938,10 @@
 
       window.onSelectBlock = function(idx) {
         selectedBlockIdx = idx;
+        // Only auto-open drawer if user hasn't explicitly closed it
+        if (!drawerDismissed) {
+          drawerOpen = true;
+        }
         renderApp();
       };
 
