@@ -1,5 +1,13 @@
 # 3c-quiz-admin
 
+This project is part of the 3C Thread To Success™ ecosystem — a growing digital platform that combines creativity, structure, and real-world application.
+
+The 3C Thread To Success™ brand, including its name, structure, characters (Aurion 3C Mascot), and overall system design, remains the intellectual property of the creator and is not included in this license.
+
+Commercial use of the brand or replication of the ecosystem identity is not permitted without permission.
+
+---
+
 **Visual Admin/Editor App for 3c-quiz**  
 _Dark Purple Edition — v3.2.0_
 
@@ -11,9 +19,7 @@ Design your quizzes using a drag-and-drop WYSIWYG interface: position, style, an
 ## Credits
 
 **Originally architected by GitHub Copilot.**  
-Refined to professional standards by **Claude Sonnet 4.6 (Anthropic)** in collaboration with **Chef Anica / 3C Thread To Success**.
-
-> _"Think it. Do it. Own it."_ — 3C Active Thinking Approach
+Refined to professional standards by **Claude Sonnet 4.6 (Anthropic)** in collaboration with **Chef Anica / 3C Thread To Success™**.
 
 ---
 
@@ -102,4 +108,24 @@ MIT
 ## See Also
 
 - [3c-quiz (main quiz app)](https://github.com/Anica-blip/3c-quiz)
-- [3C Thread To Success](https://github.com/Anica-blip)
+- [3C Thread To Success™](https://github.com/Anica-blip)
+
+## 🎨 Credits
+
+*Designed and Built with ❤️ by Claude (Anthropic) × Chef Anica · 3C Thread To Success™ Cooking Lab*
+
+---
+
+## 👤 Creator
+
+Anica-blip (“Chef”)
+Founder of 3C Thread To Success™ ("Cooking Lab")
+Independent Creator | Community Builder
+
+---
+
+🧠 Philosophy
+
+“Think it. Do it. Own it.”
+
+This project was built from vision, persistence, and a commitment to creating meaningful and structured experiences — even with minimal resources.
