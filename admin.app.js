@@ -378,7 +378,7 @@ const $ = (sel) => document.querySelector(sel);
           tempDiv.style.overflowWrap = 'break-word';
           tempDiv.style.width = width + 'px';
           tempDiv.style.fontSize = fontSize + 'px';
-          tempDiv.style.fontFamily = fontFamily || "'Montserrat', Arial, sans-serif";
+          tempDiv.style.fontFamily = fontFamily || 'Arial, sans-serif';
           tempDiv.style.lineHeight = lineHeight;
           tempDiv.innerHTML = text || '';
           
@@ -419,7 +419,7 @@ const $ = (sel) => document.querySelector(sel);
               const scaledTitleFontSize = titleFontSize * scaleY;
               const scaledTitleWidth = (titleBlock.width || 275) * scaleX;
               
-              titleActualHeight = calculateTextHeight(titleBlock.text, scaledTitleFontSize, "'Montserrat', Arial, sans-serif", scaledTitleWidth);
+              titleActualHeight = calculateTextHeight(titleBlock.text, scaledTitleFontSize, 'Arial, sans-serif', scaledTitleWidth);
               titleOriginalHeight = (titleBlock.height || 28) * scaleY; // Result pages typically have H28 for title
               titleExceedsHeight = titleActualHeight > titleOriginalHeight;
               
@@ -470,32 +470,38 @@ const $ = (sel) => document.querySelector(sel);
                 if (type === "description" || type === "desc") {
                   // Special logic for description blocks
                   if (currentBg === "static/2.png") {
-                    // Always sit the description directly below the title's real rendered
-                    // height, not a hardcoded single/multi-line guess — same approach as the
-                    // result pages, so admin and loader stay in sync on the same JSON values.
+                    // For 2.png: Y259 for single line title, Y283 for multi-line title
                     if (titleBlock && titleBlock.text) {
-                      const titleStartY = (titleBlock.y !== undefined) ? titleBlock.y : position.y;
-                      const titleGapPx = 8; // small breathing room between title and description
-                      finalY = titleStartY + (titleActualHeight / scaleY) + titleGapPx;
-                      console.log(`2.png description positioned snugly at Y=${finalY} below title (actual title height: ${titleActualHeight}px)`);
+                      const titleLineHeight = (titleBlock.fontSize || 18) * scaleY * 1.2;
+                      const numLines = Math.ceil(titleActualHeight / titleLineHeight);
+                      
+                      if (numLines > 1) {
+                        finalY = 283; // Multi-line title
+                      } else {
+                        finalY = 259; // Single line title
+                      }
+                      console.log(`2.png description positioned at Y=${finalY} (${numLines} title lines)`);
                     }
                   } else if (currentBg === "static/4.png") {
                     // For 4.png: Start at Y289 if title exceeds height, otherwise keep original position
                     if (titleExceedsHeight) {
-                      finalY = 259; // Move down if title is too tall
+                      finalY = 283; // Move down if title is too tall
                       console.log(`4.png description moved to Y=${finalY} due to title height`);
                     } else {
                       // Keep original Y position from JSON or layout
                       console.log(`4.png description keeping original Y=${finalY}`);
                     }
                   } else if (currentBg.includes("static/5") && currentBg.includes(".png")) {
-                    // For result pages (5a.png, 5b.png, 5c.png, 5d.png): always sit the description
-                    // directly below the title's real rendered height, not just on overflow —
-                    // this closes the gap whether the title is one line or wraps to two.
-                    const titleStartY = (titleBlock && titleBlock.y !== undefined) ? titleBlock.y : position.y;
-                    const titleGapPx = 8; // small breathing room between title and description
-                    finalY = titleStartY + (titleActualHeight / scaleY) + titleGapPx;
-                    console.log(`${currentBg} description positioned snugly at Y=${finalY} below title (actual title height: ${titleActualHeight}px)`);
+                    // For result pages (5a.png, 5b.png, 5c.png, 5d.png): Move description down if title exceeds height
+                    if (titleExceedsHeight) {
+                      // Calculate how much to move down based on actual title height
+                      const heightDifference = titleActualHeight - titleOriginalHeight;
+                      finalY = position.y + (heightDifference / scaleY);
+                      console.log(`${currentBg} description moved to Y=${finalY} due to title overflow (diff: ${heightDifference}px)`);
+                    } else {
+                      // Keep original Y position from JSON or layout
+                      console.log(`${currentBg} description keeping original Y=${finalY}`);
+                    }
                   } else {
                     // For other pages: Apply general rule - move description down if title exceeds height
                     if (titleExceedsHeight) {
