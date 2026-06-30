@@ -1,1084 +1,1116 @@
-const $ = (sel) => document.querySelector(sel);
+(function() {
+  function showFatalError(msg) {
+    document.body.innerHTML = '';
+    const errDiv = document.createElement('div');
+    errDiv.style = "color:#c00;font-size:1.4em;margin:32px;";
+    errDiv.innerText = "FATAL ERROR: " + msg;
+    document.body.appendChild(errDiv);
+    console.error("FATAL ERROR:", msg);
+  }
 
-        let app;
-        function ensureApp() {
-          app = $("#app");
-          if (!app) {
-            document.addEventListener("DOMContentLoaded", () => {
-              app = $("#app");
-              render();
-            });
-            return false;
-          }
-          return true;
+  function waitForSupabase(callback) {
+    if (window.supabase && window.supabase.createClient) {
+      callback(window.supabase.createClient(
+        'https://cgxjqsbrditbteqhdyus.supabase.co',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNneGpxc2JyZGl0YnRlcWhkeXVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExMTY1ODEsImV4cCI6MjA2NjY5MjU4MX0.xUDy5ic-r52kmRtocdcW8Np9-lczjMZ6YKPXc03rIG4'
+      ));
+    } else {
+      setTimeout(() => waitForSupabase(callback), 30);
+    }
+  }
+
+  waitForSupabase(function(supabaseClient) {
+    try {
+
+      const CANVAS_W = 360, CANVAS_H = 640;
+
+      // UPDATED: New coordinate system based on background images
+      const BLOCK_TYPES = [
+        // Default coordinates for 2.png
+        { type: "title", label: "Title", w: 275, h: 60, x: 42, y: 214, size: 18, align: "left", color: "#ffffff", maxlen: 200, bold: true },
+        { type: "desc", label: "Description", w: 275, h: 186, x: 42, y: 283, size: 16, align: "left", color: "#ffffff", maxlen: 1000, bold: true },
+        { type: "question", label: "Question", w: 294, h: 60, x: 31, y: 109, size: 18, align: "left", color: "#ffffff", maxlen: 200, bold: true }
+      ];
+
+      // UPDATED: Coordinate presets for different background types
+      const COORDINATE_PRESETS = {
+        // 2.png - Landing page
+        "2": {
+          "title": { w: 275, h: 60, x: 42, y: 214 },
+          "desc": { w: 275, h: 186, x: 42, y: 283 }
+        },
+        // 3a.png to 3h.png - Quiz pages
+        "3a": {
+          "question": { w: 294, h: 60, x: 31, y: 109 },
+          "answerA": { w: 294, h: 60, x: 31, y: 180 },
+          "answerB": { w: 294, h: 60, x: 31, y: 248 },
+          "answerC": { w: 294, h: 60, x: 31, y: 318 },
+          "answerD": { w: 294, h: 60, x: 31, y: 387 }
+        },
+        // 4.png - Results page
+        "4": {
+          "title": { w: 294, h: 272, x: 31, y: 114 },
+          "desc": { w: 294, h: 272, x: 31, y: 114 }
+        },
+        // 5a.png to 5d.png - Additional pages
+        "5a": {
+          "title": { w: 275, h: 54, x: 42, y: 212 },
+          "desc": { w: 275, h: 264, x: 42, y: 259 }
+        },
+        // 6.png - Final page
+        "6": {
+          "title": { w: 275, h: 68, x: 42, y: 214 }
         }
+      };
 
-        const DESIGN_WIDTH = 350;
-        const DESIGN_HEIGHT = 600;
-
-        let quizConfig = null;
-
-        const WORKER_URL = 'https://3c-quiz.3c-innertherapy.workers.dev';
-
-        async function fetchQuizFromRepoByQuizUrl(quizUrl) {
-          const url = `${WORKER_URL}/quiz/${quizUrl}`;
-
-          try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Quiz not found in R2: ${quizUrl} (${response.status})`);
-            const data = await response.json();
-
-            let pages = data.pages;
-            if (typeof pages === "string") pages = JSON.parse(pages);
-            else if (!Array.isArray(pages) && typeof pages === "object" && pages !== null) pages = Object.values(pages);
-
-            let questionPages = [];
-            if (Array.isArray(pages)) {
-              questionPages = pages.map((p, idx) => {
-                if (p.type === "question" && Array.isArray(p.blocks)) {
-                  let answers = p.blocks
-                    .filter(b => b.type === "answer")
-                    .map(b => {
-                      if (typeof b.resultType === "string" && b.resultType.length === 1) return b.resultType.trim().toUpperCase();
-                      let match = /^([A-D])\./.exec(b.text.trim());
-                      if (match) return match[1];
-                      let firstLetter = b.text.trim().charAt(0).toUpperCase();
-                      if (['A', 'B', 'C', 'D'].includes(firstLetter)) return firstLetter;
-                      return '';
-                    });
-                  return { idx, answers };
-                }
-                return null;
-              }).filter(p => p !== null);
-            }
-
-            let numQuestions = questionPages.length;
-            let userAnswers = [];
-
-            function setAnswer(questionIndex, answerValue) {
-              if (['A','B','C','D'].includes(answerValue)) {
-                userAnswers[questionIndex] = answerValue;
-                console.log(`Answer set: Q${questionIndex} = ${answerValue}`, userAnswers);
-              }
-            }
-
-            function getNextQuestionPageIndex(currentIndex) {
-              let questionIdxs = questionPages.map(q => q.idx);
-              let currentQ = questionIdxs.indexOf(currentIndex);
-              if (currentQ < questionIdxs.length - 1) {
-                return questionIdxs[currentQ + 1];
-              } else {
-                return pages.findIndex(p => p.type === "pre-results");
-              }
-            }
-
-            function calculateResultType() {
-              const counts = { A: 0, B: 0, C: 0, D: 0 };
-              
-              console.log("Calculating results from answers:", userAnswers);
-              
-              userAnswers.forEach((ans, index) => {
-                if (typeof ans === "string") {
-                  const val = ans.trim().toUpperCase();
-                  if (counts.hasOwnProperty(val)) {
-                    counts[val]++;
-                    console.log(`Answer ${index}: ${val} (running totals: A:${counts.A}, B:${counts.B}, C:${counts.C}, D:${counts.D})`);
-                  }
-                }
-              });
-              
-              console.log("Final counts:", counts);
-              
-              let max = Math.max(counts.A, counts.B, counts.C, counts.D);
-              console.log("Highest score:", max);
-              
-              if (max === 0) {
-                console.log("No answers found, defaulting to A");
-                return "A";
-              }
-              
-              let maxTypes = [];
-              for (let type of ["A", "B", "C", "D"]) {
-                if (counts[type] === max && max > 0) {
-                  maxTypes.push(type);
-                }
-              }
-              
-              console.log("Max types:", maxTypes);
-              
-              for (let type of ["A", "B", "C", "D"]) {
-                if (maxTypes.includes(type)) return type;
-              }
-              return "A";
-            }
-
-            function getResultPageIndex() {
-              const resultType = calculateResultType();
-              let resultPageType = "result" + resultType;
-              let pageIdx = pages.findIndex(p => p.type === resultPageType);
-              if (pageIdx === -1) pageIdx = pages.findIndex(p => p.type === "resultA");
-              return pageIdx;
-            }
-
-            function getThankYouPageIndex() {
-              return pages.findIndex(p => p.type === "thankyou");
-            }
-
-            return {
-              pages,
-              numQuestions,
-              showResult: data.showResult || "A",
-              userAnswers,
-              setAnswer,
-              getNextQuestionPageIndex,
-              calculateResultType,
-              getResultPageIndex,
-              getThankYouPageIndex,
-              questionPages
-            };
-          } catch (err) {
-            console.error("Quiz fetch error:", err);
-            return { error: err.message || "Unknown error during quiz fetch." };
-          }
+      // Helper function to detect background type and get appropriate coordinates
+      function getCoordinatesForBackground(bgPath, blockType) {
+        if (!bgPath) return null;
+        
+        const filename = bgPath.replace('static/', '').replace('.png', '');
+        
+        // Check for exact matches first
+        if (COORDINATE_PRESETS[filename] && COORDINATE_PRESETS[filename][blockType]) {
+          return COORDINATE_PRESETS[filename][blockType];
         }
-
-        // Create placeholder images as data URLs for demo/fallback purposes
-        function createPlaceholderImage(width, height, text, bgColor = '#333', textColor = '#fff') {
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          
-          // Background
-          ctx.fillStyle = bgColor;
-          ctx.fillRect(0, 0, width, height);
-          
-          // Text
-          ctx.fillStyle = textColor;
-          ctx.font = 'bold 24px Arial';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(text, width / 2, height / 2);
-          
-          return canvas.toDataURL();
+        
+        // Check for pattern matches (3a-3h, 5a-5d)
+        if (filename.match(/^3[a-h]$/)) {
+          return COORDINATE_PRESETS["3a"][blockType];
         }
-
-        // Function to get fallback placeholder for failed images
-        function getPlaceholderForPage(pageType) {
-          const placeholders = {
-            'cover': createPlaceholderImage(350, 600, "COVER PAGE", '#1b1242', '#fff'),
-            'intro': createPlaceholderImage(350, 600, "INTRO PAGE", '#2c3e50', '#fff'),
-            'question': createPlaceholderImage(350, 600, "QUESTION", '#34495e', '#fff'),
-            'pre-results': createPlaceholderImage(350, 600, "PRE-RESULTS", '#8e44ad', '#fff'),
-            'resultA': createPlaceholderImage(350, 600, "RESULT A", '#e74c3c', '#fff'),
-            'resultB': createPlaceholderImage(350, 600, "RESULT B", '#3498db', '#fff'),
-            'resultC': createPlaceholderImage(350, 600, "RESULT C", '#27ae60', '#fff'),
-            'resultD': createPlaceholderImage(350, 600, "RESULT D", '#f39c12', '#fff'),
-            'thankyou': createPlaceholderImage(350, 600, "THANK YOU", '#95a5a6', '#fff')
-          };
-          return placeholders[pageType] || placeholders['intro'];
+        if (filename.match(/^5[a-d]$/)) {
+          return COORDINATE_PRESETS["5a"][blockType];
         }
+        
+        return null;
+      }
 
-        const defaultPageSequence = [
-          { type: "cover", bg: "static/1.png" },
-          { type: "intro", bg: "static/2.png", blocks: [
-            { type: "title", text: "Welcome to the Quiz", fontSize: 18, color: "#fff", fontWeight: "bold", x: 42, y: 212, width: 275, height: 54 },
-            { type: "description", text: "This is a sample quiz to test the positioning and functionality.", fontSize: 14, color: "#fff", x: 42, y: 259, width: 275, height: 186 }
-          ]},
-          { type: "question", bg: "static/3a.png", blocks: [
-            { type: "question", text: "What is your favorite color?", fontSize: 18, color: "#fff", fontWeight: "bold" },
-            { type: "answer", text: "A. Red", resultType: "A" },
-            { type: "answer", text: "B. Blue", resultType: "B" },
-            { type: "answer", text: "C. Green", resultType: "C" },
-            { type: "answer", text: "D. Yellow", resultType: "D" }
-          ]},
-          { type: "question", bg: "static/3b.png", blocks: [
-            { type: "question", text: "What is your preferred activity?", fontSize: 18, color: "#fff", fontWeight: "bold" },
-            { type: "answer", text: "A. Reading", resultType: "A" },
-            { type: "answer", text: "B. Sports", resultType: "B" },
-            { type: "answer", text: "C. Music", resultType: "C" },
-            { type: "answer", text: "D. Art", resultType: "D" }
-          ]},
-          { type: "pre-results", bg: "static/4.png", blocks: [
-            { type: "title", text: "Click below to see your personalized result- based on your answers!", fontSize: 15, color: "#fff", fontWeight: "bold", x: 31, y: 109, width: 275, height: 60 },
-            { type: "description", text: "", fontSize: 15, color: "#fff", fontWeight: "bold", x: 31, y: 109, width: 275, height: 280 }
-          ]},
-          { type: "resultA", bg: "static/5a.png", blocks: [
-            { type: "title", text: "Result A", fontSize: 16, color: "#fff", fontWeight: "bold" },
-            { type: "description", text: "You are a passionate and energetic person! You love bold choices and aren't afraid to stand out.", fontSize: 13, color: "#fff" }
-          ]},
-          { type: "resultB", bg: "static/5b.png", blocks: [
-            { type: "title", text: "Result B", fontSize: 16, color: "#fff", fontWeight: "bold" },
-            { type: "description", text: "You are calm and thoughtful! You prefer stability and enjoy peaceful environments.", fontSize: 13, color: "#fff" }
-          ]},
-          { type: "resultC", bg: "static/5c.png", blocks: [
-            { type: "title", text: "Result C", fontSize: 16, color: "#fff", fontWeight: "bold" },
-            { type: "description", text: "You are balanced and harmonious! You appreciate nature and seek equilibrium in life.", fontSize: 13, color: "#fff" }
-          ]},
-          { type: "resultD", bg: "static/5d.png", blocks: [
-            { type: "title", text: "Result D", fontSize: 16, color: "#fff", fontWeight: "bold" },
-            { type: "description", text: "You are optimistic and creative! You bring sunshine and positivity wherever you go.", fontSize: 13, color: "#fff" }
-          ]},
-          { type: "thankyou", bg: "static/6.png", blocks: [
-            { type: "title", text: "Thanks for taking our quiz! We hope you enjoyed discovering more about yourself.", fontSize: 14, color: "#fff", fontWeight: "bold" }
-          ]},
-        ];
+      let quizzes = [];
+      let supabaseQuizzes = [];
+      let currentQuizIdx = 0;
+      let selectedPageIdx = 0;
+      let selectedBlockIdx = -1;
 
-        let pageSequence = [...defaultPageSequence];
-        let NUM_QUESTIONS = 8;
-        let SHOW_RESULT = "A";
+      // Drawer state — opens automatically on first block click.
+      // Once user closes it (X button), it stays closed until they
+      // manually click the "⚙ Block Settings" button in the panel.
+      let drawerOpen = false;
+      let drawerDismissed = false;
 
-        let state = {
-          page: 0,
-          quizLoaded: false,
-          quizError: "",
-          isLoading: false
+      // Module-level drag state — must live outside attachCanvasEvents
+      // so they are NOT reset when renderApp() re-creates the DOM.
+      let dragIdx = -1;
+      let dragResizing = false;
+      let dragStartX = 0, dragStartY = 0;
+      let dragStartBlock = null;
+      
+      // Add debounce for text input to prevent lag
+      let textInputTimeout = null;
+
+      function blankQuiz() {
+        return {
+          id: "",
+          title: "New Quiz",
+          pages: []
         };
+      }
 
-        function getQuizUrlParam() {
-          const params = new URLSearchParams(window.location.search);
-          return params.get("quizUrl");
+      // Fetch quizzes from Supabase for archive/list/numbering
+      async function fetchSupabaseQuizzes() {
+        const { data, error } = await supabaseClient
+          .from('quizzes')
+          .select('quiz_slug, quiz_url, title, r2_key');
+        supabaseQuizzes = data || [];
+        return supabaseQuizzes;
+      }
+
+      // Load quizzes from localStorage (legacy, for compatibility)
+      function loadLocalQuizzes() {
+        let q = localStorage.getItem('3c-quiz-admin-quizzes-v3');
+        if (!q) return [];
+        try {
+          const arr = JSON.parse(q);
+          if (!Array.isArray(arr)) return [];
+          return arr;
+        } catch {
+          return [];
         }
+      }
+      function saveQuizzes() {
+        localStorage.setItem('3c-quiz-admin-quizzes-v3', JSON.stringify(quizzes));
+      }
 
-        function autoFixPages(pages) {
-          if (!Array.isArray(pages)) return [];
-          return pages.map((p, idx) => {
-            if (typeof p.type === "string" && p.type.length > 0) return p;
-            if (
-              (Array.isArray(p.answers) && p.answers.length > 0) ||
-              (Array.isArray(p.blocks) && p.blocks.some(b => b.type === "answer"))
-            ) {
-              return { ...p, type: "question" };
-            }
-            if (idx === 0) return { ...p, type: "cover" };
-            if (idx === pages.length - 1) return { ...p, type: "thankyou" };
-            if (p.bg && p.bg.includes("4")) return { ...p, type: "pre-results" };
-            if (p.bg && p.bg.includes("5a")) return { ...p, type: "resultA" };
-            if (p.bg && p.bg.includes("5b")) return { ...p, type: "resultB" };
-            if (p.bg && p.bg.includes("5c")) return { ...p, type: "resultC" };
-            if (p.bg && p.bg.includes("5d")) return { ...p, type: "resultD" };
-            return { ...p, type: "intro" };
-          });
-        }
+      // Generate new quiz ID based on Supabase data to avoid duplicates
+      async function newQuizId() {
+        await fetchSupabaseQuizzes();
+        const used = supabaseQuizzes.map(q => {
+          let m = q.quiz_slug.match(/^quiz\.(\d+)$/);
+          return m ? parseInt(m[1]) : null;
+        }).filter(n => n !== null);
+        let n = 1;
+        while (used.includes(n)) n++;
+        return `quiz.${String(n).padStart(2,'0')}`;
+      }
 
-        function renderErrorScreen(extra = "") {
-          if (!ensureApp()) return;
-          app.innerHTML = `
-            <div style="background-color:#111;min-height:100vh;width:100vw;display:flex;align-items:center;justify-content:center;">
-              <div style="color:#fff;text-align:center;padding:20px;max-width:80vw;">
-                <h2>Error: Quiz Loading Failed</h2>
-                <p>The quiz could not be loaded. Please check your quiz data or network connection.</p>
-                ${extra}
-                <div style="margin-top:2em;">
-                  <button class="neon-button" onclick="window.location.reload()"
-    style="background:#007bff;color:#fff;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:16px;">Reload</button>
-                </div>
-              </div>
-            </div>
-          `;
-        }
+      // Render quiz archive table from Supabase data, with Edit button, sorted by quiz number ascending
+      async function renderQuizArchive() {
+        await fetchSupabaseQuizzes();
+        if (!supabaseQuizzes.length) return `<div style="color:var(--text-muted);padding:20px;">No quizzes found in Supabase.</div>`;
 
-        function renderLoadingScreen() {
-          if (!ensureApp()) return;
-          app.innerHTML = `
-            <div style="background-color:#111;min-height:100vh;width:100vw;display:flex;align-items:center;justify-content:center;">
-              <div style="color:#fff;text-align:center;padding:20px;">
-                <h2>Loading Quiz...</h2>
-                <div style="margin-top:20px;">
-                  <div style="width:50px;height:50px;border:5px solid #333;border-top:5px solid #007bff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div>
-                </div>
-              </div>
-            </div>
-            <style>
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-            </style>
-          `;
-        }
-
-        // FIXED: Updated page layouts to use JSON coordinates properly
-        const PAGE_LAYOUTS = {
-          cover: {},
-          
-          // Default fallback layout for sample pages
-          intro_result: {
-            title: { x: 42, y: 212, width: 275, height: 54 },
-            description: { x: 42, y: 259, width: 275, height: 186 }
-          },
-            
-          // Fixed positioning for result pages (5a-5d.png) - these should not move
-          result: {
-            title: { x: 42, y: 212, width: 275, height: 34 },
-            description: { x: 42, y: 259, width: 275, height: 297 }
-          },
-
-          question: {
-            question: { x: 31, y: 109, width: 294, height: 60 },
-            answers: {
-              A: { x: 31, y: 180, width: 294, height: 55 },
-              B: { x: 31, y: 248, width: 294, height: 55 },  
-              C: { x: 31, y: 318, width: 294, height: 55 },
-              D: { x: 31, y: 387, width: 294, height: 55 }
-            }
-          },
-          
-          // Fixed positioning for pre-results page (4.png) - this should not move
-          preResults: {
-            title: { x: 31, y: 109, width: 275, height: 280 }
-          },
-          
-          thankyou: {
-            title: { x: 42, y: 212, width: 275, height: 85 }
-          }
-        };
-
-        function getPageLayout(pageType, bg) {
-          if (pageType === "cover") return PAGE_LAYOUTS.cover;
-          if (pageType === "intro" || pageType.startsWith("result")) return PAGE_LAYOUTS.result;
-          if (pageType === "question") return PAGE_LAYOUTS.question;
-          if (pageType === "pre-results") return PAGE_LAYOUTS.preResults;
-          if (pageType === "thankyou") return PAGE_LAYOUTS.thankyou;
-          return PAGE_LAYOUTS.intro_result; // fallback for sample pages
-        }
-
-        function isQAPage(bg) {
-          return /^static\/3[a-h]\.png$/.test(bg);
-        }
-        function isOtherBlockPage(bg) {
-          return (
-            bg === "static/2.png" ||
-            bg === "static/5a.png" ||
-            bg === "static/5b.png" ||
-            bg === "static/5c.png" ||
-            bg === "static/5d.png" ||
-            bg === "static/6.png"
-          );
-        }
-
-        function getAnswerColor(letter) {
-          switch (letter) {
-            case "A": return "rgba(52, 152, 219, 0.35)";
-            case "B": return "rgba(46, 204, 113, 0.35)";
-            case "C": return "rgba(231, 76, 60, 0.35)";
-            case "D": return "rgba(241, 196, 15, 0.35)";
-            default: return "rgba(255,255,255,0.2)";
-          }
-        }
-
-        // Helper function to calculate actual text height
-        function calculateTextHeight(text, fontSize, fontFamily, width, lineHeight = 1.2) {
-          // Create temporary element to measure text
-          const tempDiv = document.createElement('div');
-          tempDiv.style.position = 'absolute';
-          tempDiv.style.visibility = 'hidden';
-          tempDiv.style.whiteSpace = 'pre-line';
-          tempDiv.style.wordBreak = 'break-word';
-          tempDiv.style.overflowWrap = 'break-word';
-          tempDiv.style.width = width + 'px';
-          tempDiv.style.fontSize = fontSize + 'px';
-          tempDiv.style.fontFamily = fontFamily || "'Montserrat', Arial, sans-serif";
-          tempDiv.style.lineHeight = lineHeight;
-          tempDiv.innerHTML = text || '';
-          
-          document.body.appendChild(tempDiv);
-          const height = tempDiv.offsetHeight;
-          document.body.removeChild(tempDiv);
-          
-          return height;
-        }
-
-        // UPDATED: Enhanced renderBlocks with dynamic text positioning
-        function renderBlocks(blocks, scaleX, scaleY, shrinkFactor = 0.97) {
-          if (!Array.isArray(blocks)) return "";
-          let html = "";
-          const current = pageSequence[state.page];
-          const pageType = current?.type;
-          const currentBg = current?.bg || "";
-          const layout = getPageLayout(pageType, currentBg);
-
-          console.log("Rendering blocks for page type:", pageType, "blocks:", blocks);
-
-          // Filter out answer blocks first
-          const nonAnswerBlocks = blocks.filter(block => (block.type || "").trim().toLowerCase() !== "answer");
-          
-          // For pages that need dynamic positioning (2.png and 4.png)
-          const needsDynamicPositioning = (currentBg === "static/2.png" || currentBg === "static/4.png");
-          
-          // Pre-calculate title block height for dynamic positioning
-          let titleBlock = null;
-          let titleActualHeight = 0;
-          let titleOriginalHeight = 0;
-          let titleExceedsHeight = false;
-          
-          if (needsDynamicPositioning || pageType.startsWith("result") || pageType === "intro") {
-            titleBlock = nonAnswerBlocks.find(b => (b.type || "").trim().toLowerCase() === "title");
-            if (titleBlock && titleBlock.text) {
-              const titleFontSize = titleBlock.fontSize ? (typeof titleBlock.fontSize === "string" ? parseFloat(titleBlock.fontSize) : titleBlock.fontSize) : 16;
-              const scaledTitleFontSize = titleFontSize * scaleY;
-              const scaledTitleWidth = (titleBlock.width || 275) * scaleX;
-              
-              titleActualHeight = calculateTextHeight(titleBlock.text, scaledTitleFontSize, "'Montserrat', Arial, sans-serif", scaledTitleWidth);
-              titleOriginalHeight = (titleBlock.height || 28) * scaleY; // Result pages typically have H28 for title
-              titleExceedsHeight = titleActualHeight > titleOriginalHeight;
-              
-              console.log(`${currentBg} - Title height analysis: actual=${titleActualHeight}, original=${titleOriginalHeight}, exceeds=${titleExceedsHeight}`);
-            }
-          }
-
-          nonAnswerBlocks.forEach((block, idx) => {
-            let type = (block.type || "").trim().toLowerCase();
-            
-            let style = "position:absolute;box-sizing:border-box;overflow:visible;";
-            
-            let position = null;
-            
-            // Check if block has its own coordinates first (from JSON)
-            if (block.x !== undefined && block.y !== undefined && block.width !== undefined && block.height !== undefined) {
-              // Use JSON coordinates directly
-              position = { x: block.x, y: block.y, width: block.width, height: block.height };
-              console.log(`Using JSON coordinates for ${type}: x:${position.x}, y:${position.y}, w:${position.width}, h:${position.height}`);
-            } else {
-              // Fallback to layout coordinates
-              if (pageType === "question" && type === "question") {
-                position = layout.question;
-              } else if ((pageType === "intro" || pageType.startsWith("result")) && type === "title") {
-                position = layout.title;
-              } else if ((pageType === "intro" || pageType.startsWith("result")) && (type === "description" || type === "desc")) {
-                position = layout.description;
-              } else if (pageType === "pre-results" && type === "title") {
-                position = layout.title;
-              } else if (pageType === "pre-results" && (type === "description" || type === "desc")) {
-                // For 4.png, description should use title coordinates but adjust Y dynamically
-                position = { ...layout.title };
-              } else if (pageType === "thankyou" && type === "title") {
-                position = layout.title;
-              }
-              console.log(`Using layout coordinates for ${type}:`, position);
-            }
-            
-            // Apply positioning with dynamic adjustment for specific pages
-            if (position) {
-              let finalX = position.x;
-              let finalY = position.y;
-              let finalWidth = position.width;
-              let finalHeight = position.height;
-              
-              // Dynamic positioning logic for all pages with title/description
-              if (needsDynamicPositioning || pageType.startsWith("result") || pageType === "intro") {
-                if (type === "description" || type === "desc") {
-                  // Special logic for description blocks
-                  if (currentBg === "static/2.png") {
-                    // For 2.png: Y259 for single line title, Y283 for multi-line title
-                    if (titleBlock && titleBlock.text) {
-                      const titleLineHeight = (titleBlock.fontSize || 18) * scaleY * 1.2;
-                      const numLines = Math.ceil(titleActualHeight / titleLineHeight);
-                      
-                      if (numLines > 1) {
-                        finalY = 283; // Multi-line title
-                      } else {
-                        finalY = 259; // Single line title
-                      }
-                      console.log(`2.png description positioned at Y=${finalY} (${numLines} title lines)`);
-                    }
-                  } else if (currentBg === "static/4.png") {
-                    // For 4.png: Start at Y289 if title exceeds height, otherwise keep original position
-                    if (titleExceedsHeight) {
-                      finalY = 283; // Move down if title is too tall
-                      console.log(`4.png description moved to Y=${finalY} due to title height`);
-                    } else {
-                      // Keep original Y position from JSON or layout
-                      console.log(`4.png description keeping original Y=${finalY}`);
-                    }
-                  } else if (currentBg.includes("static/5") && currentBg.includes(".png")) {
-                    // For result pages (5a.png, 5b.png, 5c.png, 5d.png): Move description down if title exceeds height
-                    if (titleExceedsHeight) {
-                      // Calculate how much to move down based on actual title height
-                      const heightDifference = titleActualHeight - titleOriginalHeight;
-                      finalY = position.y + (heightDifference / scaleY);
-                      console.log(`${currentBg} description moved to Y=${finalY} due to title overflow (diff: ${heightDifference}px)`);
-                    } else {
-                      // Keep original Y position from JSON or layout
-                      console.log(`${currentBg} description keeping original Y=${finalY}`);
-                    }
-                  } else {
-                    // For other pages: Apply general rule - move description down if title exceeds height
-                    if (titleExceedsHeight) {
-                      const heightDifference = titleActualHeight - titleOriginalHeight;
-                      finalY = position.y + (heightDifference / scaleY);
-                      console.log(`${currentBg} description moved to Y=${finalY} due to title overflow`);
-                    }
-                  }
-                }
-              }
-              
-              // Apply scaling
-              const useDirectCoords = needsDynamicPositioning && (block.x !== undefined && block.y !== undefined);
-              
-              if (useDirectCoords || needsDynamicPositioning) {
-                // For dynamic positioning, use coordinates with minimal adjustment
-                style += `left: ${(finalX * scaleX).toFixed(2)}px;`;
-                style += `top: ${(finalY * scaleY).toFixed(2)}px;`;
-                style += `width: ${(finalWidth * scaleX).toFixed(2)}px;`;
-                style += `min-height: ${(finalHeight * scaleY).toFixed(2)}px;`;
-              } else {
-                // Use shrinkFactor for layout-based positioning
-                style += `left: ${(finalX * scaleX * shrinkFactor).toFixed(2)}px;`;
-                style += `top: ${(finalY * scaleY * shrinkFactor).toFixed(2)}px;`;
-                style += `width: ${(finalWidth * scaleX * shrinkFactor).toFixed(2)}px;`;
-                style += `min-height: ${(finalHeight * scaleY * shrinkFactor).toFixed(2)}px;`;
-              }
-            }
-
-            // Text alignment based on page type
-            if (pageType === "pre-results" || pageType === "thankyou") {
-              style += "text-align:center;justify-content:center;align-items:center;"; 
-            } else if (pageType.startsWith("result")) {
-              style += "text-align:left;justify-content:left;align-items:flex-start;";
-            } else {
-              style += "text-align:left;justify-content:flex-start;align-items:flex-start;";
-            }
-            
-            style += "display:flex;";
-            style += "white-space:pre-line;word-break:break-word;overflow-wrap:break-word;";
-            
-            // Apply block-specific styles
-            if (block.fontSize) {
-              const fontSize = typeof block.fontSize === "string" ? parseFloat(block.fontSize) : block.fontSize;
-              // Use direct scaling for dynamic positioning
-              if (needsDynamicPositioning) {
-                style += `font-size: ${(fontSize * scaleY).toFixed(2)}px;`;
-              } else {
-                style += `font-size: ${(fontSize * scaleY * shrinkFactor).toFixed(2)}px;`;
-              }
-            }
-            if (block.color) style += `color:${block.color};`;
-            if (block.fontWeight) style += `font-weight:${block.fontWeight};`;
-            if (block.lineHeight) style += `line-height:${block.lineHeight};`;
-            if (block.margin !== undefined) style += `margin:${block.margin};`;
-            if (block.padding !== undefined) style += `padding:${block.padding};`;
-
-            let className = "";
-            if (type === "title") className = "block-title";
-            else if (type === "description" || type === "desc") className = "block-desc";
-            else if (type === "question") className = "block-question";
-            else if (type === "result") className = "block-result";
-            else className = "block-generic";
-
-            console.log(`Rendering ${type} block with final style:`, style);
-            html += `<div class="${className}" style="${style}">${block.text || ''}</div>`;
-          });
-
-          if (pageType === "question") {
-            html += `<div id="dynamic-answer-buttons"></div>`;
-          }
-
-          return html;
-        }
-
-        function getCurrentQuestionIndex() {
-          if (!quizConfig || !quizConfig.questionPages) {
-            let questionCount = 0;
-            for (let i = 0; i < state.page; i++) {
-              if (pageSequence[i] && pageSequence[i].type === "question") {
-                questionCount++;
-              }
-            }
-            return questionCount;
-          }
-
-          const currentPageIndex = state.page;
-          const questionPageIndex = quizConfig.questionPages.findIndex(q => q.idx === currentPageIndex);
-          
-          if (questionPageIndex !== -1) {
-            return questionPageIndex;
-          }
-          
-          let questionCount = 0;
-          for (let i = 0; i < state.page; i++) {
-            if (pageSequence[i] && pageSequence[i].type === "question") {
-              questionCount++;
-            }
-          }
-          return questionCount;
-        }
-
-        function render() {
-          if (!ensureApp()) return;
-          
-          if (state.isLoading) {
-            renderLoadingScreen();
-            return;
-          }
-
-          if (state.quizError) {
-            renderErrorScreen(`<div style="color:#f00"><strong>${state.quizError}</strong></div>`);
-            return;
-          }
-
-          app.innerHTML = "";
-          const current = pageSequence[state.page];
-
-          if (!current || typeof current.type !== "string") {
-            renderErrorScreen("<div style='color:#f00'>Invalid page data.</div>");
-            return;
-          }
-
-          let showBack = state.page > 0;
-          let nextLabel = "Next";
-          if (current.type === "cover") nextLabel = "Start";
-          if (current.type === "pre-results") nextLabel = "Get Results";
-          if (
-            current.type === "resultA" ||
-            current.type === "resultB" ||
-            current.type === "resultC" ||
-            current.type === "resultD"
-          ) {
-            nextLabel = "Finish";
-          }
-
-          let nextAction = () => {
-            if (current.type === "pre-results") {
-              if (quizConfig && quizConfig.calculateResultType) {
-                SHOW_RESULT = quizConfig.calculateResultType();
-                console.log("Calculated result type:", SHOW_RESULT, "from answers:", quizConfig.userAnswers);
-              }
-              
-              let resultPageIndex = -1;
-              if (SHOW_RESULT === "A") resultPageIndex = pageSequence.findIndex(p => p.type === "resultA");
-              else if (SHOW_RESULT === "B") resultPageIndex = pageSequence.findIndex(p => p.type === "resultB");
-              else if (SHOW_RESULT === "C") resultPageIndex = pageSequence.findIndex(p => p.type === "resultC");
-              else if (SHOW_RESULT === "D") resultPageIndex = pageSequence.findIndex(p => p.type === "resultD");
-              
-              if (resultPageIndex !== -1) {
-                state.page = resultPageIndex;
-              } else {
-                state.page = pageSequence.findIndex(p => p.type.startsWith("result"));
-              }
-              render();
-              return;
-            } else if (
-              current.type === "resultA" ||
-              current.type === "resultB" ||
-              current.type === "resultC" ||
-              current.type === "resultD"
-            ) {
-              state.page = pageSequence.findIndex(p => p.type === "thankyou");
-              render();
-              return;
-            } else if (current.type === "thankyou") {
-              return;
-            }
-            state.page = Math.min(state.page + 1, pageSequence.length - 1);
-            render();
-          };
-
-          if (current.type === "cover") {
-            app.innerHTML = `
-              <div class="cover-outer" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#12093b;">
-                <div class="cover-image-container" style="position:relative;max-width:96vw;max-height:90vh;">
-                  <img class="cover-img" src="${current.bg}" alt="cover" style="width:auto;height:auto;max-width:100%;max-height:100%;display:block;" 
-                       onerror="this.src='${getPlaceholderForPage('cover')}'; console.log('Cover image failed to load, using placeholder');" />
-                  <button class="main-btn cover-btn-in-img" id="startBtn" style="position:absolute;bottom:50px;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;text-align:center;">${nextLabel}</button>
-                </div>
-              </div>
-            `;
-            setTimeout(() => {
-              const startBtn = $("#startBtn");
-              if (startBtn) {            
-                startBtn.onclick = async () => {
-                  startBtn.disabled = true;
-                  startBtn.style.opacity = "0.6";
-                  startBtn.textContent = "Loading...";
-                  
-                  const quizUrlParam = getQuizUrlParam();
-                  console.log("Quiz URL parameter:", quizUrlParam);
-                  
-                  if (quizUrlParam) {
-                    state.isLoading = true;
-                    render();
-                    
-                    try {
-                      const config = await fetchQuizFromRepoByQuizUrl(quizUrlParam);
-                      console.log("Config returned:", config);
-
-                      if (config && config.error) {
-                        state.isLoading = false;
-                        state.quizError = config.error;
-                        render();
-                        return;
-                      }
-                      
-                      if (config && Array.isArray(config.pages) && config.pages.length > 0) {
-                        config.pages = autoFixPages(config.pages);
-                        pageSequence = config.pages;
-                        NUM_QUESTIONS = config.numQuestions;
-                        SHOW_RESULT = config.showResult || SHOW_RESULT;
-                        state.page = 1;
-                        state.quizLoaded = true;
-                        state.quizError = "";
-                        state.isLoading = false;
-                        quizConfig = config;
-                        console.log("Quiz loaded successfully:", config);
-                        render();
-                      } else {
-                        state.isLoading = false;
-                        state.quizError = "No quiz data loaded from repository!";
-                        render();
-                      }
-                    } catch (err) {
-                      console.error("Quiz loading error:", err);
-                      state.isLoading = false;
-                      state.quizError = err.message || "Error loading quiz from repository.";
-                      render();
-                    }
-                  } else {
-                    state.page = 1;
-                    state.quizLoaded = true;
-                    state.quizError = "";
-                    state.isLoading = false;
-                    console.log("Using default quiz pages");
-                    render();
-                  }
-                };
-              }
-            }, 0);
-            return;
-          }
-
-          if (
-            ["intro", "question", "pre-results", "resultA", "resultB", "resultC", "resultD", "thankyou"].includes(current.type)
-          ) {
-            // Add page-specific CSS class to container for better styling
-            let pageClass = `page-${current.type}`;
-            
-            app.innerHTML = `
-              <div id="quiz-img-wrap" class="${pageClass}" style="display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;overflow:auto;background:#12093b;">
-                <div id="img-block-container" style="position:relative;overflow:visible;">
-                  <img id="quiz-bg-img" src="${current.bg}" alt="quiz background" style="display:block;width:auto;height:auto;max-width:96vw;max-height:90vh;" 
-                       onerror="this.src='${getPlaceholderForPage(current.type)}'; console.log('Background image failed to load for ${current.type}, using placeholder');" />
-                  <div id="block-overlay-layer" style="position:absolute;left:0;top:0;pointer-events:none;"></div>
-                </div>
-              </div>
-              <div class="fullscreen-bottom" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:15px;z-index:1000;">
-                ${showBack ? `<button class="main-btn back-arrow-btn" id="backBtn" title="Go Back" style="background:rgba(255,255,255,0.1);color:#fff;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);text-align:center;">Back</button>` : ""}
-                ${current.type !== "thankyou" ? `<button class="main-btn" id="nextBtn" style="text-align:center;display:flex;align-items:center;justify-content:center;">${nextLabel}</button>` : ""}
-              </div>
-            `;
-            
-            const img = $("#quiz-bg-img");
-            const handleImageLoad = () => {
-              const rect = img.getBoundingClientRect();
-              const displayW = rect.width;
-              const displayH = rect.height;
-
-              const overlay = $("#block-overlay-layer");
-              if (!overlay) {
-                console.error("Block overlay layer not found");
-                return;
-              }
-              
-              overlay.style.width = displayW + "px";
-              overlay.style.height = displayH + "px";
-              overlay.style.left = "0px";
-              overlay.style.top = "0px";
-
-              // Use different shrink factors for different page types
-              let shrinkFactor = 0.97;
-              if (current.type === "pre-results" || current.type.startsWith("result")) {
-                shrinkFactor = 1.0; // No shrinking for fixed position pages
-              }
-
-              overlay.innerHTML = renderBlocks(current.blocks || [], displayW / DESIGN_WIDTH, displayH / DESIGN_HEIGHT, shrinkFactor);
-
-              if (current.type === "question") {
-                let answerBlocks = (current.blocks || []).filter(b => (b.type || "").trim().toLowerCase() === "answer")
-                  .map(b => {
-                    let letter = "";
-                    if (typeof b.resultType === "string" && b.resultType.length === 1) {
-                      letter = b.resultType.trim().toUpperCase();
-                    } else {
-                      let match = /^([A-D])\./.exec(b.text.trim());
-                      if (match) {
-                        letter = match[1];
-                      } else {
-                        let firstLetter = b.text.trim().charAt(0).toUpperCase();
-                        if (['A', 'B', 'C', 'D'].includes(firstLetter)) {
-                          letter = firstLetter;
-                        }
-                      }
-                    }
-                    return { block: b, letter };
-                  })
-                  .sort((a, b) => a.letter.localeCompare(b.letter));
-
-                let questionIndex = getCurrentQuestionIndex();
-
-                console.log("Answer blocks found:", answerBlocks);
-                console.log("Current question index:", questionIndex);
-
-                const answerLayer = overlay.querySelector("#dynamic-answer-buttons");
-                if (answerLayer && answerBlocks.length > 0) {
-                  answerLayer.innerHTML = "";
-                  answerLayer.style.pointerEvents = "auto";
-
-                  const layout = getPageLayout("question");
-
-                  answerBlocks.forEach((answer, idx) => {
-                    const answerPos = layout.answers[answer.letter];
-                    if (!answerPos) {
-                      console.warn(`No position defined for answer ${answer.letter}`);
-                      return;
-                    }
-
-                    let isSelected = false;
-                    if (quizConfig && quizConfig.userAnswers && questionIndex >= 0) {
-                      isSelected = quizConfig.userAnswers[questionIndex] === answer.letter;
-                    }
-                    let btnColor = getAnswerColor(answer.letter);
-
-                    let btn = document.createElement("button");
-                    btn.type = "button";
-                    btn.className = "block-answer-btn" + (isSelected ? " selected" : "");
-                    btn.setAttribute("data-answer", answer.letter);
-                    btn.setAttribute("data-question-index", questionIndex.toString());
-
-                    btn.style.position = "absolute";
-                    btn.style.left = (answerPos.x * (displayW / DESIGN_WIDTH) * shrinkFactor) + "px";
-                    btn.style.top = (answerPos.y * (displayH / DESIGN_HEIGHT) * shrinkFactor) + "px";
-                    btn.style.width = (answerPos.width * (displayW / DESIGN_WIDTH) * shrinkFactor) + "px";
-                    btn.style.minHeight = (answerPos.height * (displayH / DESIGN_HEIGHT) * shrinkFactor) + "px";          
-
-                    btn.style.background = btnColor;
-                    btn.style.border = "none";
-                    btn.style.borderRadius = Math.max(8, 12 * (displayH / DESIGN_HEIGHT) * shrinkFactor) + "px";
-                    btn.style.color = "#fff";
-                    btn.style.fontSize = Math.max(11, 14 * (displayH / DESIGN_HEIGHT) * shrinkFactor) + "px";
-                    btn.style.cursor = "pointer";
-                    btn.style.fontWeight = "600";
-                    btn.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
-                    btn.style.outline = "none";
-                    btn.style.zIndex = "10";
-                    
-                    btn.style.display = "flex";
-                    btn.style.alignItems = "center";
-                    btn.style.justifyContent = "flex-start";
-                    btn.style.textAlign = "left";
-                    
-                    btn.style.opacity = isSelected ? "1.0" : "0.9";
-                    btn.style.transition = "all 0.2s ease";
-                    btn.style.padding = Math.max(8, 12 * (displayH / DESIGN_HEIGHT) * shrinkFactor) + "px";
-                    
-                    btn.style.whiteSpace = "pre-line";
-                    btn.style.wordBreak = "break-word";
-                    btn.style.overflowWrap = "break-word";
-                    btn.style.lineHeight = "1.3";
-
-                    btn.innerHTML = answer.block.text || '';
-
-                    if (isSelected) {
-                      btn.style.boxShadow = "0 0 0 2px #fff, 0 2px 12px rgba(0,0,0,0.2)";
-                      btn.style.transform = "translateY(-1px)";
-                    }
-
-                    btn.onmouseenter = () => {
-                      if (!btn.classList.contains('selected')) {
-                        btn.style.opacity = "1";
-                        btn.style.transform = "translateY(-1px)";
-                        btn.style.boxShadow = "0 2px 12px rgba(0,0,0,0.25)";
-                      }
-                    };
-                    btn.onmouseleave = () => {
-                      if (!btn.classList.contains('selected')) {
-                        btn.style.opacity = "0.9";
-                        btn.style.transform = "translateY(0)";
-                        btn.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
-                      } else {
-                        btn.style.transform = "translateY(-1px)";
-                      }
-                    };
-
-                    answerLayer.appendChild(btn);
-                    
-                    console.log(`Button ${answer.letter} positioned at X:${answerPos.x} Y:${answerPos.y} W:${answerPos.width} H:${answerPos.height}`);
-                  });
-
-                  setTimeout(() => {
-                    const answerBtns = answerLayer.querySelectorAll(".block-answer-btn");
-                    answerBtns.forEach(btn => {
-                      btn.onclick = (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        
-                        let answerLetter = btn.getAttribute("data-answer");
-                        let questionIndex = parseInt(btn.getAttribute("data-question-index"));
-                        
-                        console.log(`Answer clicked: ${answerLetter} for question ${questionIndex}`);
-                        
-                        if (questionIndex >= 0 && quizConfig && quizConfig.setAnswer) {
-                          quizConfig.setAnswer(questionIndex, answerLetter);
-                          console.log("Current answers:", quizConfig.userAnswers);
-                        }
-                        
-                        answerBtns.forEach(b => {
-                          b.classList.remove("selected");
-                          b.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
-                          b.style.opacity = "0.9";
-                          b.style.transform = "translateY(0)";
-                        });
-                        
-                        btn.classList.add("selected");
-                        btn.style.boxShadow = "0 0 0 2px #fff, 0 2px 12px rgba(0,0,0,0.2)";
-                        btn.style.opacity = "1.0";
-                        btn.style.transform = "translateY(-1px)";
-                      };
-                    });
-                  }, 20);
-                }
-              }
-            };
-
-            img.onload = handleImageLoad;
-            if (img.complete) handleImageLoad();
-
-            setTimeout(() => {
-              if (current.type !== "thankyou") {
-                const nextBtn = $("#nextBtn");
-                if (nextBtn) {
-                  nextBtn.onclick = nextAction;
-                }
-              }
-              
-              if (showBack) {
-                const backBtn = $("#backBtn");
-                if (backBtn) {
-                  backBtn.onmouseenter = () => {
-                    backBtn.style.background = "rgba(255,255,255,0.2)";
-                  };
-                  backBtn.onmouseleave = () => {
-                    backBtn.style.background = "rgba(255,255,255,0.1)";
-                  };
-                  backBtn.onclick = () => {
-                    if (
-                      current.type === "thankyou" ||
-                      current.type === "resultA" ||
-                      current.type === "resultB" ||
-                      current.type === "resultC" ||
-                      current.type === "resultD"
-                    ) {
-                      state.page = pageSequence.findIndex(p => p.type === "pre-results");
-                    } else if (current.type === "pre-results") {
-                      let lastQuestionIdx = -1;
-                      for (let i = pageSequence.length - 1; i >= 0; i--) {
-                        if (pageSequence[i].type === "question") {
-                          lastQuestionIdx = i;
-                          break;
-                        }
-                      }
-                      if (lastQuestionIdx !== -1) {
-                        state.page = lastQuestionIdx;
-                      } else {
-                        state.page = Math.max(state.page - 1, 0);
-                      }
-                    } else {
-                      state.page = Math.max(state.page - 1, 0);
-                    }
-                    render();
-                  };
-                }
-              }
-            }, 0);
-            return;
-          }
-        }
-
-        function initializeApp() {
-          console.log("Initializing quiz app...");
-          
-          if (document.body) {
-            document.body.classList.add('app-loaded');
-          }
-          
-          if (!quizConfig) {
-            quizConfig = {
-              pages: [...defaultPageSequence],
-              numQuestions: 2,
-              showResult: "A",
-              userAnswers: [],
-              questionPages: [
-                { idx: 2, answers: ['A', 'B', 'C', 'D'] },
-                { idx: 3, answers: ['A', 'B', 'C', 'D'] }
-              ],
-              setAnswer: function(questionIndex, answerValue) {
-                if (['A','B','C','D'].includes(answerValue)) {
-                  this.userAnswers[questionIndex] = answerValue;
-                  console.log(`Answer set: Q${questionIndex} = ${answerValue}`);
-                }
-              },
-              calculateResultType: function() {
-                const counts = { A: 0, B: 0, C: 0, D: 0 };
-                
-                console.log("Calculating results from answers:", this.userAnswers);
-                
-                this.userAnswers.forEach((ans, index) => {
-                  if (typeof ans === "string") {
-                    const val = ans.trim().toUpperCase();
-                    if (counts.hasOwnProperty(val)) {
-                      counts[val]++;
-                      console.log(`Answer ${index}: ${val} (running totals: A:${counts.A}, B:${counts.B}, C:${counts.C}, D:${counts.D})`);
-                    }
-                  }
-                });
-                
-                console.log("Final counts:", counts);
-                
-                let max = Math.max(counts.A, counts.B, counts.C, counts.D);
-                console.log("Highest score:", max);
-                
-                if (max === 0) {
-                  console.log("No answers found, defaulting to A");
-                  return "A";
-                }
-                
-                let maxTypes = [];
-                for (let type of ["A", "B", "C", "D"]) {
-                  if (counts[type] === max && max > 0) {
-                    maxTypes.push(type);
-                  }
-                }
-                
-                console.log("Types with max score:", maxTypes);
-                
-                for (let type of ["A", "B", "C", "D"]) {
-                  if (maxTypes.includes(type)) return type;
-                }
-                return "A";
-              }
-            };
-          }
-          
-          if (!ensureApp()) {
-            console.log("App container not ready, waiting for DOM...");
-            return;
-          }
-          
-          console.log("App container ready, rendering initial state...");
-          render();
-        }
-
-        let resizeTimeout;
-        window.addEventListener("resize", () => {
-          clearTimeout(resizeTimeout);
-          resizeTimeout = setTimeout(() => {
-            if (!state.isLoading && !state.quizError) {
-              render();
-            }
-          }, 100);
+        // Sort by quiz number ascending (01, 02, 03...)
+        const sortedQuizzes = [...supabaseQuizzes].sort((a, b) => {
+          const getNum = q => parseInt((q.quiz_slug.match(/\.(\d+)$/) || [])[1] || 0);
+          return getNum(a) - getNum(b);
         });
 
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', initializeApp);
-        } else {
-          initializeApp();
+        return `
+          <section id="quiz-archive-section">
+            <div>
+              <h2>Quiz Archive</h2>
+              <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;">Edit</th>
+                    <th style="text-align:left;">Quiz #</th>
+                    <th style="text-align:left;">Title</th>
+                    <th style="text-align:left;">URL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                ${sortedQuizzes.map(q => `
+                  <tr>
+                    <td>
+                      <button onclick="window.onLoadQuizFromArchiveBySlug('${q.quiz_slug}')" style="background:#7c3aed;color:#fff;font-weight:600;">Edit</button>
+                    </td>
+                    <td>${q.quiz_slug}</td>
+                    <td>${q.title || ''}</td>
+                    <td>
+                      <input type="text" value="${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}" readonly style="width:60%;">
+                      <button onclick="navigator.clipboard.writeText('${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}')" style="background:#a855f7;color:#fff;margin-left:6px;">Copy</button>
+                      <a href="${q.quiz_url || `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${q.quiz_slug}`}" target="_blank">Open ↗</a>
+                    </td>
+                  </tr>
+                `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        `;
+      }
+
+      // Correct handler: open quiz by quiz_slug, not index!
+      window.onLoadQuizFromArchiveBySlug = async function(slug) {
+        await fetchSupabaseQuizzes();
+        const quiz = supabaseQuizzes.find(q => q.quiz_slug === slug);
+        if (!quiz) return;
+
+        // Load pages from R2 via worker (pages column no longer exists in Supabase)
+        let pages = [];
+        try {
+          const r2Res = await fetch(`https://3c-quiz.3c-innertherapy.workers.dev/quiz/${slug}`);
+          if (r2Res.ok) {
+            const r2Data = await r2Res.json();
+            pages = r2Data.pages || [];
+          }
+        } catch (e) {
+          console.warn("R2 load failed for", slug, e.message);
         }
+
+        const editorQuiz = {
+          id: quiz.quiz_slug,
+          title: quiz.title,
+          pages: pages
+        };
+        quizzes.push(editorQuiz);
+        currentQuizIdx = quizzes.length-1;
+        selectedPageIdx = 0;
+        selectedBlockIdx = -1;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onBlockFontSize = function(bi, val) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        page.blocks[bi].size = parseInt(val)||18;
+        saveQuizzes();
+        renderApp();
+      };
+      window.onBlockColor = function(bi, val) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        page.blocks[bi].color = val;
+        saveQuizzes();
+        renderApp();
+      };
+      window.onBlockPos = function(bi, prop, val) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        page.blocks[bi][prop] = parseInt(val)||0;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onQuizTitleChange = function(val) {
+        quizzes[currentQuizIdx].title = val;
+        saveQuizzes();
+      };
+      window.onPrevPage = function() {
+        if (selectedPageIdx > 0) {
+          selectedPageIdx--; selectedBlockIdx = -1; renderApp();
+        }
+      }
+      window.onNextPage = function() {
+        let quiz = quizzes[currentQuizIdx];
+        if (selectedPageIdx < quiz.pages.length-1) {
+          selectedPageIdx++; selectedBlockIdx = -1; renderApp();
+        }
+      }
+      window.onSavePage = function() {
+        saveQuizzes();
+        alert("Page saved!");
+      }
+
+      window.onSaveQuiz = async function() {
+        const statusDiv = document.getElementById("supabase-status");
+        if (statusDiv) statusDiv.textContent = '⏳ Saving...';
+        let qz = quizzes[currentQuizIdx];
+
+        const quiz_slug = qz.id;
+        const quiz_url = `https://anica-blip.github.io/3c-quiz-admin/landing.html?quiz=${quiz_slug}`;
+        const r2_key = `Quizzes/${quiz_slug}.json`;
+        const WORKER_URL = `https://3c-quiz.3c-innertherapy.workers.dev`;
+
+        if (!supabaseClient) {
+          showFatalError("Supabase client not loaded yet, please reload and try again.");
+          return;
+        }
+
+        // ── Step 1: Save full quiz JSON to R2 via worker ─────────────────────
+        let r2Ok = false;
+        try {
+          const r2Res = await fetch(`${WORKER_URL}/quiz/${quiz_slug}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: qz.id, title: qz.title, pages: qz.pages }, null, 2)
+          });
+          if (!r2Res.ok) {
+            const errText = await r2Res.text();
+            throw new Error(`R2 worker error ${r2Res.status}: ${errText}`);
+          }
+          r2Ok = true;
+        } catch (r2Err) {
+          if (statusDiv) {
+            statusDiv.style.color = "#c00";
+            statusDiv.textContent = "❌ R2 save failed: " + r2Err.message;
+          }
+          alert("R2 save failed: " + r2Err.message);
+          return;
+        }
+
+        // ── Step 2: Update Supabase index row (no pages — R2 carries that) ───
+        const { data: existingRow, error: selectError } = await supabaseClient
+          .from('quizzes')
+          .select('quiz_slug')
+          .eq('quiz_slug', quiz_slug)
+          .maybeSingle();
+
+        if (selectError) {
+          if (statusDiv) {
+            statusDiv.style.color = "#c00";
+            statusDiv.textContent = "❌ Supabase check failed: " + selectError.message;
+          }
+          alert("Supabase check failed: " + selectError.message);
+          return;
+        }
+
+        let saveError;
+        if (existingRow) {
+          const { error } = await supabaseClient
+            .from('quizzes')
+            .update({ quiz_url, title: qz.title, r2_key })
+            .eq('quiz_slug', quiz_slug);
+          saveError = error;
+        } else {
+          const { error } = await supabaseClient
+            .from('quizzes')
+            .insert([{ quiz_slug, quiz_url, title: qz.title, r2_key }]);
+          saveError = error;
+        }
+
+        if (saveError) {
+          if (statusDiv) {
+            statusDiv.style.color = "#e60";
+            statusDiv.textContent = "⚠️ R2 saved ✅ but Supabase index failed: " + saveError.message;
+          }
+          alert("Quiz JSON saved to R2 ✅\nBut Supabase index update failed: " + saveError.message);
+        } else {
+          if (statusDiv) {
+            statusDiv.style.color = "#22c55e";
+            statusDiv.textContent = existingRow
+              ? "✅ Quiz updated (R2 + Supabase)"
+              : "✅ Quiz saved (R2 + Supabase)";
+          }
+          alert(existingRow ? "Quiz updated in R2 + Supabase!" : "Quiz saved to R2 + Supabase!");
+          await renderApp();
+        }
+      };
+
+      window.onExportQuiz = function() {
+        let qz = quizzes[currentQuizIdx];
+        let data = JSON.stringify(qz, null, 2);
+        let blob = new Blob([data], {type: "application/json"});
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = `${qz.id}.json`;
+        a.click();
+        setTimeout(()=>URL.revokeObjectURL(url), 500);
+      };
+      window.onImportQuiz = function() {
+        let inp = document.createElement("input");
+        inp.type = "file";
+        inp.accept = ".json,application/json";
+        inp.onchange = e => {
+          let file = inp.files[0];
+          let reader = new FileReader();
+          reader.onload = function(ev) {
+            try {
+              let data = JSON.parse(ev.target.result);
+              if (data && data.id && data.pages) {
+                quizzes.push(data);
+                currentQuizIdx = quizzes.length-1;
+                selectedPageIdx = 0;
+                selectedBlockIdx = -1;
+                saveQuizzes();
+                renderApp();
+              } else {
+                alert("Invalid quiz file.");
+              }
+            } catch {
+              alert("Import failed.");
+            }
+          };
+          reader.readAsText(file);
+        };
+        inp.click();
+      };
+
+      window.onSelectPage = function(idx) {
+        selectedPageIdx = idx;
+        selectedBlockIdx = -1;
+        renderApp();
+      };
+      window.onMovePageUpSingle = function(idx) {
+        if (idx <= 0) return;
+        let quiz = quizzes[currentQuizIdx];
+        let pages = quiz.pages;
+        [pages[idx-1], pages[idx]] = [pages[idx], pages[idx-1]];
+        selectedPageIdx = idx-1;
+        saveQuizzes();
+        renderApp();
+      };
+      window.onMovePageDownSingle = function(idx) {
+        let quiz = quizzes[currentQuizIdx];
+        let pages = quiz.pages;
+        if (idx >= pages.length-1) return;
+        [pages[idx+1], pages[idx]] = [pages[idx], pages[idx+1]];
+        selectedPageIdx = idx+1;
+        saveQuizzes();
+        renderApp();
+      };
+      window.onRemovePage = function(idx) {
+        let quiz = quizzes[currentQuizIdx];
+        quiz.pages.splice(idx, 1);
+        if (selectedPageIdx >= quiz.pages.length) selectedPageIdx = quiz.pages.length-1;
+        selectedBlockIdx = -1;
+        saveQuizzes();
+        renderApp();
+      };
+      window.onAddPage = function() {
+        let quiz = quizzes[currentQuizIdx];
+        quiz.pages = quiz.pages || [];
+        quiz.pages.push({ bg: "", blocks: [] });
+        selectedPageIdx = quiz.pages.length-1;
+        selectedBlockIdx = -1;
+        saveQuizzes();
+        renderApp();
+      };
+      window.onDuplicatePage = function() {
+        let quiz = quizzes[currentQuizIdx];
+        let page = quiz.pages[selectedPageIdx];
+        if (!page) return;
+        let copy = JSON.parse(JSON.stringify(page));
+        quiz.pages.splice(selectedPageIdx+1, 0, copy);
+        selectedPageIdx = selectedPageIdx+1;
+        selectedBlockIdx = -1;
+        saveQuizzes();
+        renderApp();
+      };
+      window.onNewQuizTab = async function() {
+        // Generate a new quiz ID based on Supabase to avoid collision
+        const id = await newQuizId();
+        const newQuiz = Object.assign(blankQuiz(), {id});
+        quizzes.push(newQuiz);
+        currentQuizIdx = quizzes.length-1;
+        selectedPageIdx = 0;
+        selectedBlockIdx = -1;
+        saveQuizzes();
+        renderApp();
+      };
+      window.onBgChange = function(val) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        page.bg = val;
+        saveQuizzes();
+        renderApp();
+      };
+      window.onPickBg = function() {
+        let val = prompt(`Enter background image filename (in static/):\nCurrent: ${quizzes[currentQuizIdx].pages[selectedPageIdx].bg}`);
+        if (val) {
+          quizzes[currentQuizIdx].pages[selectedPageIdx].bg = val.startsWith('static/') ? val : "static/" + val.replace(/^static\//,'');
+          saveQuizzes();
+          renderApp();
+        }
+      };
+
+      // ── Close drawer — stays closed until user manually reopens ────────────
+      window.onCloseDrawer = function() {
+        drawerOpen = false;
+        drawerDismissed = true;
+        renderApp();
+      };
+
+      // ── Manually reopen drawer ──────────────────────────────────────────────
+      window.onOpenDrawer = function() {
+        drawerOpen = true;
+        drawerDismissed = false;
+        renderApp();
+      };
+
+      function renderCanvas(page) {
+        if (!page) return `<div class="editor-canvas"></div>`;
+        return `
+          <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;position:relative;">
+            <img class="bg" src="${page.bg||''}" alt="bg">
+            ${(page.blocks||[]).map((b,bi) => `
+              <div class="text-block${bi===selectedBlockIdx?' selected':''}"
+                style="
+                  left:${b.x}px;top:${b.y}px;
+                  width:${b.w}px;
+                  height:${b.h}px;
+                  font-size:${b.size}px;
+                  color:${b.color};
+                  font-weight: ${b.bold ? 'bold' : 'normal'};
+                  text-align:${b.align||'left'};
+                  position:absolute;
+                  "
+                data-idx="${bi}"
+                tabindex="0"
+                onclick="onSelectBlock(${bi});"
+                >
+                <span class="block-label">${b.label||b.type}</span>
+                <div class="block-content" contenteditable="true"
+                  oninput="onBlockTextInput(${bi},this)"
+                  spellcheck="true"
+                  style="
+                    direction: ltr !important; 
+                    text-align: inherit;
+                    font-size:inherit;
+                    color:inherit;
+                    font-weight: inherit;
+                    width:100%;
+                    min-height:24px;
+                    outline:none;
+                    background:transparent;
+                    border:none;
+                    overflow-wrap:break-word;
+                    white-space:pre-wrap;
+                    resize:none;
+                    display:block;
+                    vertical-align:top;
+                    padding:4px;
+                    margin:0;
+                    max-height:none;
+                    overflow-y:auto;"
+                  >${b.text ? b.text.replace(/</g,"&lt;").replace(/\n/g,"<br>") : ""}</div>
+                <div class="resize-handle" data-idx="${bi}" title="Resize"></div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      // ── Block settings rendered inside the slide-out drawer ────────────────
+      function renderBlockSettingsDrawer(page) {
+        let b = (page.blocks||[])[selectedBlockIdx];
+        if (!b) return `<div class="drawer-empty">Click any block on the canvas<br>to edit its settings here.</div>`;
+        return `
+          <div class="sf-info-card">
+            <code>${b.label||b.type}</code><br>
+            W: <code>${b.w}</code> &times; H: <code>${b.h}</code><br>
+            X: <code>${b.x}</code> &times; Y: <code>${b.y}</code>
+          </div>
+
+          <div class="sf-group">
+            <label class="sf-label">Font Size (px)</label>
+            <input class="sf-input" type="number" min="10" max="64" value="${b.size}"
+              onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
+          </div>
+
+          <div class="sf-group">
+            <label class="sf-label">Text Color</label>
+            <input class="sf-color" type="color" value="${b.color}"
+              onchange="onBlockColor(${selectedBlockIdx},this.value)">
+          </div>
+
+          <div class="sf-row">
+            <input class="sf-checkbox" type="checkbox" id="sf-bold-check" ${b.bold ? 'checked' : ''}
+              onchange="onBlockBold(${selectedBlockIdx},this.checked)">
+            <label class="sf-check-label" for="sf-bold-check">Bold text</label>
+          </div>
+
+          <div class="sf-group">
+            <label class="sf-label">Text Align</label>
+            <select class="sf-select" onchange="onBlockAlign(${selectedBlockIdx},this.value)">
+              <option value="left" ${b.align==="left"?"selected":""}>Left</option>
+              <option value="center" ${b.align==="center"?"selected":""}>Center</option>
+            </select>
+          </div>
+
+          <div class="sf-grid2">
+            <div class="sf-group">
+              <label class="sf-label">Width (px)</label>
+              <input class="sf-input" type="number" min="80" max="${CANVAS_W-16}" value="${b.w}"
+                onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
+            </div>
+            <div class="sf-group">
+              <label class="sf-label">Height (px)</label>
+              <input class="sf-input" type="number" min="24" max="${CANVAS_H}" value="${b.h}"
+                onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
+            </div>
+            <div class="sf-group">
+              <label class="sf-label">X Position</label>
+              <input class="sf-input" type="number" min="0" max="${CANVAS_W-20}" value="${b.x}"
+                onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
+            </div>
+            <div class="sf-group">
+              <label class="sf-label">Y Position</label>
+              <input class="sf-input" type="number" min="0" max="${CANVAS_H-20}" value="${b.y}"
+                onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
+            </div>
+          </div>
+        `;
+      }
+
+      // ── Legacy renderBlockSettings kept for internal reference (not used in UI) ──
+      function renderBlockSettings(page) {
+        let b = (page.blocks||[])[selectedBlockIdx];
+        if (!b) return `<div style="margin-top:20px;">Select a block to edit its settings here.</div>`;
+        return `
+          <div style="margin-bottom:8px;">
+            <button onclick="onSelectBlock(${selectedBlockIdx})" style="font-weight:bold;">${b.label||b.type}</button>
+          </div>
+          <div class="block-settings">
+            <div style="font-size:1em;">
+              <b>W</b>: ${b.w} &times; <b>H</b>: ${b.h}<br>
+              <b>X</b>: ${b.x} &times; <b>Y</b>: ${b.y}
+            </div>
+            <label>Font Size: 
+              <input type="number" min="10" max="64" value="${b.size}" style="width:48px;"
+                onchange="onBlockFontSize(${selectedBlockIdx},this.value)">
+            </label>
+            <label>Color: 
+              <input type="color" value="${b.color}"
+                onchange="onBlockColor(${selectedBlockIdx},this.value)">
+            </label>
+            <label>Bold: 
+              <input type="checkbox" ${b.bold ? 'checked' : ''}
+                onchange="onBlockBold(${selectedBlockIdx},this.checked)">
+            </label>
+            <label>Width: 
+              <input type="number" min="80" max="${CANVAS_W-16}" value="${b.w}" style="width:48px;"
+                onchange="onBlockPos(${selectedBlockIdx},'w',this.value)">
+            </label>
+            <label>Height: 
+              <input type="number" min="24" max="${CANVAS_H}" value="${b.h}" style="width:48px;"
+                onchange="onBlockPos(${selectedBlockIdx},'h',this.value)">
+            </label>
+            <label>X: 
+              <input type="number" min="0" max="${CANVAS_W-20}" value="${b.x}" style="width:48px;"
+                onchange="onBlockPos(${selectedBlockIdx},'x',this.value)">
+            </label>
+            <label>Y: 
+              <input type="number" min="0" max="${CANVAS_H-20}" value="${b.y}" style="width:48px;"
+                onchange="onBlockPos(${selectedBlockIdx},'y',this.value)">
+            </label>
+            <label>Align:
+              <select onchange="onBlockAlign(${selectedBlockIdx},this.value)">
+                <option value="left" ${b.align==="left"?"selected":""}>Left</option>
+                <option value="center" ${b.align==="center"?"selected":""}>Center</option>
+              </select>
+            </label>
+          </div>
+        `;
+      }
+
+      function attachCanvasEvents() {
+        const canvas = document.getElementById('editor-canvas');
+        if (!canvas) return;
+        const page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+
+        canvas.querySelectorAll('.text-block').forEach((blockEl, bi) => {
+          // Drag: start on the block wrapper — but NOT on the contenteditable or resize handle
+          blockEl.onmousedown = e => {
+            if (e.target.classList.contains('block-content') ||
+                e.target.classList.contains('resize-handle')) return;
+            dragIdx     = bi;
+            dragResizing = false;
+            dragStartX  = e.clientX;
+            dragStartY  = e.clientY;
+            dragStartBlock = { ...page.blocks[bi] };
+            document.body.style.userSelect = "none";
+            e.preventDefault();
+          };
+
+          // Resize: start on the resize handle
+          const resizeHandle = blockEl.querySelector('.resize-handle');
+          if (resizeHandle) {
+            resizeHandle.onmousedown = e => {
+              dragIdx      = bi;
+              dragResizing = true;
+              dragStartX   = e.clientX;
+              dragStartY   = e.clientY;
+              dragStartBlock = { ...page.blocks[bi] };
+              document.body.style.userSelect = "none";
+              e.stopPropagation();
+              e.preventDefault();
+            };
+          }
+        });
+
+        // Mousemove: update data model + DOM directly — NO renderApp() call.
+        // renderApp() destroys the canvas on every call, which kills drag state.
+        window.onmousemove = e => {
+          if (dragIdx === -1) return;
+          const block = page.blocks[dragIdx];
+          if (!block) return;
+
+          // Re-query the element each move (safe after any re-render)
+          const currentCanvas = document.getElementById('editor-canvas');
+          const domBlock = currentCanvas
+            ? currentCanvas.querySelectorAll('.text-block')[dragIdx]
+            : null;
+
+          if (dragResizing) {
+            const dw = e.clientX - dragStartX;
+            const dh = e.clientY - dragStartY;
+            block.w = Math.max(80, Math.min(CANVAS_W - 16, dragStartBlock.w + dw));
+            block.h = Math.max(24, dragStartBlock.h + dh);
+            if (domBlock) {
+              domBlock.style.width  = block.w + 'px';
+              domBlock.style.height = block.h + 'px';
+            }
+          } else {
+            const dx = e.clientX - dragStartX;
+            const dy = e.clientY - dragStartY;
+            block.x = Math.max(0, Math.min(CANVAS_W - block.w, dragStartBlock.x + dx));
+            block.y = Math.max(0, Math.min(CANVAS_H - block.h, dragStartBlock.y + dy));
+            if (domBlock) {
+              domBlock.style.left = block.x + 'px';
+              domBlock.style.top  = block.y + 'px';
+            }
+          }
+        };
+
+        // Mouseup: drag ends — save data, update drawer coords only (no full re-render)
+        window.onmouseup = () => {
+          if (dragIdx === -1) return;
+          dragIdx      = -1;
+          dragResizing = false;
+          document.body.style.userSelect = "";
+          saveQuizzes();
+          // Refresh drawer position/size readout without destroying the canvas
+          if (drawerOpen && selectedBlockIdx >= 0) {
+            const pg = quizzes[currentQuizIdx].pages[selectedPageIdx];
+            const drawerBody = document.querySelector('.drawer-body');
+            if (drawerBody) drawerBody.innerHTML = renderBlockSettingsDrawer(pg);
+          }
+        };
+      }
+
+      // ── Main render function ────────────────────────────────────────────────
+      async function renderApp() {
+        try {
+          const app = document.getElementById('app');
+          if (!app) throw new Error("App container not found!");
+          const quiz = quizzes[currentQuizIdx] || blankQuiz();
+          const pages = quiz.pages || [];
+          const page = pages[selectedPageIdx] || {};
+          const activeBlock = (page.blocks||[])[selectedBlockIdx];
+
+          app.innerHTML = `
+            <!-- ── TOPBAR ── -->
+            <div class="topbar">
+              <span class="app-title">3c-<strong>quiz</strong>-admin</span>
+              <span class="topbar-credit">Built by Claude × Chef Anica · 3C Thread To Success</span>
+              <div class="topbar-actions">
+                <button class="tbtn" onclick="onSaveQuiz()">💾 Save Quiz</button>
+                <button class="tbtn tbtn-orange" onclick="onExportQuiz()">⬇ Export JSON</button>
+                <button class="tbtn tbtn-outline" onclick="onImportQuiz()">⬆ Import JSON</button>
+              </div>
+            </div>
+
+            <!-- ── SUBBAR ── -->
+            <div class="subbar">
+              <button class="sbtn" onclick="onNewQuizTab()">+ New Quiz</button>
+              <div class="subbar-sep"></div>
+              <span class="subbar-label">Quiz ID:</span>
+              <span class="quiz-id-badge">${quiz.id}</span>
+              <input type="text" value="${quiz.title}" style="width:155px;" onchange="onQuizTitleChange(this.value)" placeholder="Quiz title">
+              <div class="subbar-sep"></div>
+              <div class="page-nav-wrap">
+                <button class="sbtn" onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''}>←</button>
+                <span class="page-nav-text">Page ${selectedPageIdx+1} / ${pages.length}</span>
+                <button class="sbtn" onclick="onNextPage()" ${selectedPageIdx===pages.length-1?'disabled':''}>→</button>
+              </div>
+              <button class="sbtn" onclick="onSavePage()">💾 Save Page</button>
+              <div class="subbar-sep"></div>
+              <span class="subbar-label">BG:</span>
+              <input type="text" value="${page.bg||''}" style="width:126px;" onchange="onBgChange(this.value)" placeholder="static/1.png">
+              <button class="sbtn" onclick="onPickBg()">Pick Image</button>
+            </div>
+
+            <!-- ── EDITOR LAYOUT (3-column) ── -->
+            <div class="editor-layout">
+
+              <!-- LEFT: Pages sidebar -->
+              <div class="sidebar-left">
+                <div class="page-list">
+                  <div class="sidebar-section-title">Pages</div>
+                  <ul>
+                    ${pages.map((p, i) => `
+                      <li>
+                        <button class="page-button ${i===selectedPageIdx?'active':''}" onclick="onSelectPage(${i})">
+                          <img class="page-img-thumb" src="${p.bg || ''}" alt="" onerror="this.style.display='none';">
+                          <span class="img-filename">${(p.bg||'').replace('static/','') || `Page ${i+1}`}</span>
+                        </button>
+                        <button class="page-ctrl-btn" onclick="onMovePageUpSingle(${i})" ${i===0?'disabled':''} title="Move Up">↑</button>
+                        <button class="page-ctrl-btn" onclick="onMovePageDownSingle(${i})" ${i===pages.length-1?'disabled':''} title="Move Down">↓</button>
+                        <button class="page-ctrl-btn danger" onclick="onRemovePage(${i})" title="Remove">✕</button>
+                      </li>
+                    `).join('')}
+                  </ul>
+                  <div class="page-actions-row">
+                    <button class="pabtn" onclick="onAddPage()">+ Add Page</button>
+                    <button class="pabtn" onclick="onDuplicatePage()">Duplicate</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CENTER: Canvas -->
+              <div class="canvas-area">
+                ${renderCanvas(page)}
+              </div>
+
+              <!-- RIGHT: Add Block panel -->
+              <div class="block-add-panel">
+                <div class="sidebar-section-title">Add Block</div>
+                <button class="add-block-btn" onclick="onAddBlock('title')">Title</button>
+                <button class="add-block-btn" onclick="onAddBlock('desc')">Description</button>
+                <button class="add-block-btn" onclick="onAddBlock('question')">Question</button>
+                <button class="add-block-btn" onclick="onAddAnswerBlock('A')">Answer A</button>
+                <button class="add-block-btn" onclick="onAddAnswerBlock('B')">Answer B</button>
+                <button class="add-block-btn" onclick="onAddAnswerBlock('C')">Answer C</button>
+                <button class="add-block-btn" onclick="onAddAnswerBlock('D')">Answer D</button>
+                <div class="add-block-divider"></div>
+                <button class="add-block-danger" onclick="onRemoveAllBlocks()">Remove All</button>
+                <button class="add-block-danger" onclick="onRemoveBlockSidebar()" ${selectedBlockIdx<0?"disabled":""}>Remove Block</button>
+                <div class="add-block-divider"></div>
+                <button class="settings-open-btn"
+                  onclick="onOpenDrawer()"
+                  ${selectedBlockIdx < 0 ? 'disabled' : ''}
+                  title="${selectedBlockIdx < 0 ? 'Select a block first' : 'Open block settings panel'}">
+                  ⚙ Block Settings
+                </button>
+              </div>
+
+            </div>
+
+            <!-- ── SETTINGS DRAWER (slide-out, fixed position) ── -->
+            <div class="settings-drawer ${drawerOpen && selectedBlockIdx >= 0 ? 'open' : ''}">
+              <div class="drawer-header">
+                <span class="drawer-title">
+                  ⚙ Block Settings
+                  ${activeBlock ? `<span class="drawer-block-name">— ${activeBlock.label || activeBlock.type}</span>` : ''}
+                </span>
+                <button class="drawer-close" onclick="onCloseDrawer()" title="Close — won't reopen automatically">✕</button>
+              </div>
+              <div class="drawer-body">
+                ${renderBlockSettingsDrawer(page)}
+              </div>
+            </div>
+
+            <!-- ── STATUS BAR ── -->
+            <div id="supabase-status"></div>
+
+            <!-- ── QUIZ ARCHIVE (below editor) ── -->
+            <div id="quiz-archive-wrap" style="width:100%;"></div>
+          `;
+
+          setTimeout(attachCanvasEvents, 30);
+          setTimeout(()=>{
+            if (selectedBlockIdx >= 0) {
+              let canvas = document.getElementById("editor-canvas");
+              if (canvas) {
+                let blockEls = canvas.querySelectorAll('.text-block');
+                let contentEl = blockEls[selectedBlockIdx]?.querySelector('.block-content');
+                if (contentEl) {
+                  contentEl.focus();
+                  // FORCE cursor to end and ensure LTR
+                  const range = document.createRange();
+                  const sel = window.getSelection();
+                  range.selectNodeContents(contentEl);
+                  range.collapse(false);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                  contentEl.style.direction = 'ltr';
+                  contentEl.style.textAlign = 'left';
+                }
+              }
+            }
+          }, 100);
+
+          // Render quiz archive BELOW the editor/app
+          const archiveDiv = document.getElementById('quiz-archive-wrap');
+          if (archiveDiv) archiveDiv.innerHTML = await renderQuizArchive();
+        } catch(e) {
+          showFatalError("Render error: " + e.message);
+        }
+      }
+
+      // ========== Block/Page/Quiz Control Logic ==========
+
+      window.onAddAnswerBlock = function(letter) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let coords = getCoordinatesForBackground(page.bg, `answer${letter}`);
+        
+        if (!coords) {
+          coords = {
+            "A": { x: 31, y: 180 },
+            "B": { x: 31, y: 248 },
+            "C": { x: 31, y: 318 },
+            "D": { x: 31, y: 387 }
+          }[letter];
+          coords.w = 294;
+          coords.h = 60;
+        }
+        
+        page.blocks = page.blocks || [];
+        page.blocks.push({
+          type: "answer",
+          label: `Answer ${letter}`,
+          resultType: letter,
+          text: "",
+          x: coords.x, y: coords.y,
+          w: coords.w, h: coords.h,
+          size: 16,
+          color: "#ffffff",
+          align: "left",
+          bold: true,
+          maxlen: 200
+        });
+        selectedBlockIdx = page.blocks.length-1;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onRemoveBlockSidebar = function() {
+        if (selectedBlockIdx < 0) return;
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        page.blocks.splice(selectedBlockIdx,1);
+        selectedBlockIdx = -1;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onAddBlock = function(type) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let coords = getCoordinatesForBackground(page.bg, type);
+        let tpl = BLOCK_TYPES.find(b => b.type===type);
+        
+        if (!tpl && !coords) return;
+        
+        // Use coordinates from background or template
+        let blockData = {
+          type: type,
+          label: tpl ? tpl.label : type.charAt(0).toUpperCase() + type.slice(1),
+          text: "",
+          size: 18,
+          color: "#ffffff",
+          align: "left",
+          bold: true,
+          maxlen: tpl ? tpl.maxlen : 500
+        };
+        
+        if (coords) {
+          Object.assign(blockData, coords);
+        } else {
+          Object.assign(blockData, {
+            x: tpl.x, y: tpl.y, w: tpl.w, h: tpl.h
+          });
+        }
+        
+        page.blocks = page.blocks || [];
+        page.blocks.push(blockData);
+        selectedBlockIdx = page.blocks.length-1;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onRemoveAllBlocks = function() {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        page.blocks = [];
+        selectedBlockIdx = -1;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onSelectBlock = function(idx) {
+        // If this block is already selected, do NOT re-render.
+        // Re-rendering destroys the contenteditable and kills typing.
+        if (selectedBlockIdx === idx) return;
+        selectedBlockIdx = idx;
+        // Only auto-open drawer if user hasn't explicitly closed it
+        if (!drawerDismissed) {
+          drawerOpen = true;
+        }
+        renderApp();
+      };
+
+      window.onBlockAlign = function(idx, val) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let b = page.blocks[idx];
+        b.align = val;
+        saveQuizzes();
+        renderApp();
+      };
+
+      window.onBlockBold = function(idx, val) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let b = page.blocks[idx];
+        b.bold = val;
+        saveQuizzes();
+        renderApp();
+      };
+
+      // FIXED: Debounced text input to prevent lag
+      window.onBlockTextInput = function(bi, el) {
+        let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+        let b = page.blocks[bi];
+        let text = el.innerText.replace(/\u200B/g, '');
+        if (b.maxlen) text = text.slice(0, b.maxlen);
+        b.text = text;
+        
+        // Enforce LTR direction only — do NOT override text-align
+        // (block's alignment is controlled by its own settings)
+        el.style.direction = 'ltr';
+        
+        // Clear previous timeout
+        if (textInputTimeout) {
+          clearTimeout(textInputTimeout);
+        }
+        
+        // Save with debounce - only save after user stops typing for 300ms
+        textInputTimeout = setTimeout(() => {
+          saveQuizzes();
+          // Only update drawer settings if visible
+          updateBlockSettingsOnly(bi);
+        }, 300);
+      };
+      
+      // Helper: update just the drawer settings content without full re-render
+      function updateBlockSettingsOnly(blockIndex) {
+        if (selectedBlockIdx === blockIndex) {
+          const page = quizzes[currentQuizIdx].pages[selectedPageIdx];
+          const drawerBody = document.querySelector('.drawer-body');
+          if (drawerBody) {
+            drawerBody.innerHTML = renderBlockSettingsDrawer(page);
+          }
+        }
+      }
+
+      // Initialization
+      (async function init() {
+        quizzes = loadLocalQuizzes();
+        if (quizzes.length === 0) {
+          const id = await newQuizId();
+          quizzes.push(Object.assign(blankQuiz(), {id}));
+        }
+        await renderApp();
+      })();
+
+      // ========== Finalization and Utilities ==========
+
+      window.onerror = function(message, source, lineno, colno, error) {
+        showFatalError(`Global error: ${message} at ${source}:${lineno}:${colno}`);
+      };
+
+      function deepCopy(obj) {
+        return JSON.parse(JSON.stringify(obj));
+      }
+
+      window.clearApp = function() {
+        quizzes = [];
+        currentQuizIdx = 0;
+        selectedPageIdx = 0;
+        selectedBlockIdx = -1;
+        localStorage.removeItem('3c-quiz-admin-quizzes-v3');
+        renderApp();
+      };
+
+      window.onbeforeunload = function() {
+        saveQuizzes();
+      };
+
+      window._3cQuizAdmin = {
+        quizzes,
+        supabaseQuizzes,
+        currentQuizIdx,
+        selectedPageIdx,
+        selectedBlockIdx
+      };
+
+      window.reloadQuizAdmin = function() {
+        window.location.reload();
+      };
+
+      window.QuizAdminAPI = {
+        getQuizzes: () => quizzes,
+        getCurrentQuiz: () => quizzes[currentQuizIdx],
+        getQuizArchive: () => supabaseQuizzes,
+        reload: () => renderApp()
+      };
+
+      window.showCredits = function() {
+        alert("3c-quiz-admin by Anica-blip\nBuilt by Claude (Anthropic) × Chef Anica\n3C Thread To Success");
+      };
+
+      window.debugQuizAdmin = function() {
+        console.log("Current quizzes:", quizzes);
+        console.log("Supabase quizzes:", supabaseQuizzes);
+        console.log("Selected page:", selectedPageIdx);
+        console.log("Selected block:", selectedBlockIdx);
+      };
+
+      window.addEventListener('unhandledrejection', function(event) {
+        showFatalError('Unhandled promise rejection: ' + (event.reason?.message || event.reason));
+      });
+
+      window.QuizAdminVersion = "v3.2.0";
+
+      console.log("3c-quiz-admin v3.2.0 loaded — Dark Purple Edition.");
+      console.log("Built by Claude (Anthropic) × Chef Anica · 3C Thread To Success");
+
+    } catch(e) {
+      showFatalError(e.message || e);
+    }
+  });
+
+})();
