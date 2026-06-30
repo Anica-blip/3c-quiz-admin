@@ -484,8 +484,46 @@
         renderApp();
       };
 
+      // Mirrors quiz_app_1_.js calculateTextHeight() exactly, so the admin
+      // canvas measures rendered title height the same way the live quiz does.
+      function calculateTextHeight(text, fontSize, fontFamily, width, lineHeight = 1.2) {
+        const tempDiv = document.createElement('div');
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.visibility = 'hidden';
+        tempDiv.style.whiteSpace = 'pre-line';
+        tempDiv.style.wordBreak = 'break-word';
+        tempDiv.style.overflowWrap = 'break-word';
+        tempDiv.style.width = width + 'px';
+        tempDiv.style.fontSize = fontSize + 'px';
+        tempDiv.style.fontFamily = fontFamily || "'Montserrat', Arial, sans-serif";
+        tempDiv.style.lineHeight = lineHeight;
+        tempDiv.innerHTML = text || '';
+        document.body.appendChild(tempDiv);
+        const height = tempDiv.offsetHeight;
+        document.body.removeChild(tempDiv);
+        return height;
+      }
+
       function renderCanvas(page) {
         if (!page) return `<div class="editor-canvas"></div>`;
+
+        // Mirror quiz_app_1_.js: on static/2.png and static/5a-5d.png the
+        // description's Y always sits directly below the title's actual
+        // rendered text height + 8px gap. We write this into the block's
+        // real y value (not just a visual override) so the drawer shows
+        // the exact number — width/height stay fully independent and
+        // freely resizable, only Y is auto-synced.
+        const bg = page.bg || '';
+        const needsDynamicDesc = bg === "static/2.png" || /^static\/5[a-d]\.png$/.test(bg);
+        if (needsDynamicDesc) {
+          const titleBlock = (page.blocks||[]).find(b => b.type === "title");
+          const descBlock = (page.blocks||[]).find(b => b.type === "desc");
+          if (titleBlock && descBlock && titleBlock.text) {
+            const titleHeight = calculateTextHeight(titleBlock.text, titleBlock.size, "'Montserrat', Arial, sans-serif", titleBlock.w);
+            descBlock.y = Math.round(titleBlock.y + titleHeight + 8);
+          }
+        }
+
         return `
           <div class="editor-canvas" id="editor-canvas" style="width:${CANVAS_W}px;height:${CANVAS_H}px;position:relative;">
             <img class="bg" src="${page.bg||''}" alt="bg">
@@ -1011,6 +1049,31 @@
         // Enforce LTR direction only — do NOT override text-align
         // (block's alignment is controlled by its own settings)
         el.style.direction = 'ltr';
+
+        // Live-sync: if this is the title block on static/2.png or
+        // static/5a-5d.png, reposition the description's Y immediately
+        // as the title grows/shrinks — mirrors quiz_app_1_.js exactly.
+        // Width/height of the description are untouched, so resizing
+        // stays fully independent.
+        const bg = page.bg || '';
+        const needsDynamicDesc = bg === "static/2.png" || /^static\/5[a-d]\.png$/.test(bg);
+        if (needsDynamicDesc && b.type === "title") {
+          const descIdx = page.blocks.findIndex(bl => bl.type === "desc");
+          if (descIdx !== -1) {
+            const descBlock = page.blocks[descIdx];
+            const titleHeight = calculateTextHeight(text, b.size, "'Montserrat', Arial, sans-serif", b.w);
+            descBlock.y = Math.round(b.y + titleHeight + 8);
+
+            const canvas = document.getElementById('editor-canvas');
+            const descEl = canvas ? canvas.querySelectorAll('.text-block')[descIdx] : null;
+            if (descEl) descEl.style.top = descBlock.y + 'px';
+
+            if (selectedBlockIdx === descIdx) {
+              const drawerBody = document.querySelector('.drawer-body');
+              if (drawerBody) drawerBody.innerHTML = renderBlockSettingsDrawer(page);
+            }
+          }
+        }
         
         // Clear previous timeout
         if (textInputTimeout) {
