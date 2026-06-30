@@ -28,7 +28,7 @@
       const BLOCK_TYPES = [
         // Default coordinates for 2.png
         { type: "title", label: "Title", w: 275, h: 60, x: 42, y: 212, size: 18, align: "left", color: "#ffffff", maxlen: 200, bold: true },
-        { type: "desc", label: "Description", w: 275, h: 186, x: 42, y: 283, size: 16, align: "left", color: "#ffffff", maxlen: 1000, bold: true },
+        { type: "desc", label: "Description", w: 275, h: 186, x: 42, y: 259, size: 16, align: "left", color: "#ffffff", maxlen: 1000, bold: true },
         { type: "question", label: "Question", w: 294, h: 60, x: 31, y: 109, size: 18, align: "left", color: "#ffffff", maxlen: 200, bold: true }
       ];
 
@@ -37,7 +37,7 @@
         // 2.png - Landing page
         "2": {
           "title": { w: 275, h: 60, x: 42, y: 212 },
-          "desc": { w: 275, h: 186, x: 42, y: 283 }
+          "desc": { w: 275, h: 186, x: 42, y: 259 }
         },
         // 3a.png to 3h.png - Quiz pages
         "3a": {
