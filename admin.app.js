@@ -310,7 +310,7 @@ const $ = (sel) => document.querySelector(sel);
             
           // Fixed positioning for result pages (5a-5d.png) - these should not move
           result: {
-            title: { x: 42, y: 212, width: 275, height: 34 },
+            title: { x: 42, y: 212, width: 275, height: 54 },
             description: { x: 42, y: 259, width: 275, height: 297 }
           },
 
@@ -378,7 +378,7 @@ const $ = (sel) => document.querySelector(sel);
           tempDiv.style.overflowWrap = 'break-word';
           tempDiv.style.width = width + 'px';
           tempDiv.style.fontSize = fontSize + 'px';
-          tempDiv.style.fontFamily = fontFamily || "'Montserrat', Arial, sans-serif";
+          tempDiv.style.fontFamily = fontFamily || 'Arial, sans-serif';
           tempDiv.style.lineHeight = lineHeight;
           tempDiv.innerHTML = text || '';
           
@@ -419,7 +419,7 @@ const $ = (sel) => document.querySelector(sel);
               const scaledTitleFontSize = titleFontSize * scaleY;
               const scaledTitleWidth = (titleBlock.width || 275) * scaleX;
               
-              titleActualHeight = calculateTextHeight(titleBlock.text, scaledTitleFontSize, "'Montserrat', Arial, sans-serif", scaledTitleWidth);
+              titleActualHeight = calculateTextHeight(titleBlock.text, scaledTitleFontSize, 'Arial, sans-serif', scaledTitleWidth);
               titleOriginalHeight = (titleBlock.height || 28) * scaleY; // Result pages typically have H28 for title
               titleExceedsHeight = titleActualHeight > titleOriginalHeight;
               
