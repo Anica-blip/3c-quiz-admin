@@ -36,8 +36,8 @@
       const COORDINATE_PRESETS = {
         // 2.png - Landing page
         "2": {
-          "title": { w: 275, h: 60, x: 42, y: 214 },
-          "desc": { w: 275, h: 186, x: 42, y: 283 }
+          "title": { w: 275, h: 34, x: 42, y: 212 },
+          "desc": { w: 275, h: 297, x: 42, y: 259 }
         },
         // 3a.png to 3h.png - Quiz pages
         "3a": {
@@ -54,8 +54,8 @@
         },
         // 5a.png to 5d.png - Additional pages
         "5a": {
-          "title": { w: 275, h: 54, x: 42, y: 212 },
-          "desc": { w: 275, h: 264, x: 42, y: 259 }
+          "title": { w: 275, h: 34, x: 42, y: 212 },
+          "desc": { w: 275, h: 297, x: 42, y: 259 }
         },
         // 6.png - Final page
         "6": {
