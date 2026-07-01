@@ -221,6 +221,10 @@
           title: quiz.title,
           pages: pages
         };
+        // Loaded fresh from the server, so it matches exactly right now —
+        // snapshot it immediately, or init() would wrongly treat this as
+        // unsaved work on the next open even if nothing gets changed.
+        editorQuiz._savedSnapshot = JSON.stringify({ id: editorQuiz.id, title: editorQuiz.title, pages: editorQuiz.pages });
         quizzes.push(editorQuiz);
         currentQuizIdx = quizzes.length-1;
         selectedPageIdx = 0;
@@ -357,6 +361,11 @@
               : "✅ Quiz saved (R2 + Supabase)";
           }
           alert(existingRow ? "Quiz updated in R2 + Supabase!" : "Quiz saved to R2 + Supabase!");
+          // Snapshot exactly what was just persisted, so a future app open
+          // can tell "safely saved, no changes since" apart from "there's
+          // real unsaved work here" — see init()'s filter below.
+          qz._savedSnapshot = JSON.stringify({ id: qz.id, title: qz.title, pages: qz.pages });
+          saveQuizzes();
           await renderApp();
         }
       };
@@ -791,6 +800,13 @@
           const page = pages[selectedPageIdx] || {};
           const activeBlock = (page.blocks||[])[selectedBlockIdx];
 
+          // renderApp() fully replaces app.innerHTML on every call — that
+          // destroys and recreates .sidebar-left, which silently resets
+          // its scroll position to the top. Save it here, restore it after
+          // the new DOM is in place, so selecting a page you'd scrolled
+          // down to find doesn't jump you back to the top of the list.
+          const prevSidebarScroll = document.querySelector('.sidebar-left')?.scrollTop || 0;
+
           app.innerHTML = `
             <div class="editor-viewport">
             <!-- ── TOPBAR ── -->
@@ -903,6 +919,10 @@
           `;
 
           setTimeout(attachCanvasEvents, 30);
+
+          // Restore sidebar scroll position now that the new list exists
+          const sidebarEl = document.querySelector('.sidebar-left');
+          if (sidebarEl) sidebarEl.scrollTop = prevSidebarScroll;
           setTimeout(()=>{
             if (selectedBlockIdx >= 0) {
               let canvas = document.getElementById("editor-canvas");
@@ -1110,12 +1130,23 @@
       }
 
       // Initialization
+      // Resume only quizzes with real unsaved work; quizzes that exactly
+      // match their last successful R2+Supabase save are left out here —
+      // they're already safely backed up, so auto-resuming them would just
+      // risk an accidental reupload of unchanged content. Editing one of
+      // those again is exclusively via the archive's Edit button, and the
+      // moment it's actually edited it no longer matches its snapshot, so
+      // it would resume normally on the next open if left unsaved again.
       (async function init() {
-        quizzes = loadLocalQuizzes();
+        quizzes = loadLocalQuizzes().filter(q => {
+          const current = JSON.stringify({ id: q.id, title: q.title, pages: q.pages });
+          return current !== q._savedSnapshot;
+        });
         if (quizzes.length === 0) {
           const id = await newQuizId();
           quizzes.push(Object.assign(blankQuiz(), {id}));
         }
+        currentQuizIdx = quizzes.length - 1;
         await renderApp();
       })();
 
