@@ -110,7 +110,7 @@
       function blankQuiz() {
         return {
           id: "",
-          title: "New Quiz",
+          title: "",
           pages: []
         };
       }
@@ -157,10 +157,10 @@
         await fetchSupabaseQuizzes();
         if (!supabaseQuizzes.length) return `<div style="color:var(--text-muted);padding:20px;">No quizzes found in Supabase.</div>`;
 
-        // Sort by quiz number ascending (01, 02, 03...)
+        // Sort by quiz number descending (latest created shows first)
         const sortedQuizzes = [...supabaseQuizzes].sort((a, b) => {
           const getNum = q => parseInt((q.quiz_slug.match(/\.(\d+)$/) || [])[1] || 0);
-          return getNum(a) - getNum(b);
+          return getNum(b) - getNum(a);
         });
 
         return `
@@ -792,6 +792,7 @@
           const activeBlock = (page.blocks||[])[selectedBlockIdx];
 
           app.innerHTML = `
+            <div class="editor-viewport">
             <!-- ── TOPBAR ── -->
             <div class="topbar">
               <span class="app-title">3c-<strong>quiz</strong>-admin</span>
@@ -809,7 +810,7 @@
               <div class="subbar-sep"></div>
               <span class="subbar-label">Quiz ID:</span>
               <span class="quiz-id-badge">${quiz.id}</span>
-              <input type="text" value="${quiz.title}" style="width:155px;" onchange="onQuizTitleChange(this.value)" placeholder="Quiz title">
+              <input type="text" value="${quiz.title}" style="width:155px;" onchange="onQuizTitleChange(this.value)" placeholder="New Quiz">
               <div class="subbar-sep"></div>
               <div class="page-nav-wrap">
                 <button class="sbtn" onclick="onPrevPage()" ${selectedPageIdx===0?'disabled':''}>←</button>
@@ -877,6 +878,7 @@
                 </button>
               </div>
 
+            </div>
             </div>
 
             <!-- ── SETTINGS DRAWER (slide-out, fixed position) ── -->
