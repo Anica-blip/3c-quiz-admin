@@ -244,6 +244,14 @@
       window.onBlockPos = function(bi, prop, val) {
         let page = quizzes[currentQuizIdx].pages[selectedPageIdx];
         page.blocks[bi][prop] = parseInt(val)||0;
+        // Manually editing a description block's Y position takes it out
+        // of auto-positioning permanently for this block — the drawer is
+        // meant to give full freedom to move/expand/reposition, and the
+        // auto-calc should only ever be a helpful starting default, never
+        // something that keeps overwriting a deliberate manual choice.
+        if (prop === 'y' && page.blocks[bi].type === 'desc') {
+          page.blocks[bi].descYManual = true;
+        }
         saveQuizzes();
         renderApp();
       };
@@ -508,17 +516,17 @@
         if (!page) return `<div class="editor-canvas"></div>`;
 
         // Mirror quiz_app_1_.js: on static/2.png and static/5a-5d.png the
-        // description's Y always sits directly below the title's actual
-        // rendered text height + 8px gap. We write this into the block's
-        // real y value (not just a visual override) so the drawer shows
-        // the exact number — width/height stay fully independent and
-        // freely resizable, only Y is auto-synced.
+        // description's Y defaults to sitting directly below the title's
+        // actual rendered text height + 8px gap — but only as a starting
+        // point. The moment Chef edits Y herself via the drawer (see
+        // onBlockPos's descYManual flag), this stops touching it — full
+        // manual freedom to move/expand takes priority over the default.
         const bg = page.bg || '';
         const needsDynamicDesc = bg === "static/2.png" || /^static\/5[a-d]\.png$/.test(bg);
         if (needsDynamicDesc) {
           const titleBlock = (page.blocks||[]).find(b => b.type === "title");
           const descBlock = (page.blocks||[]).find(b => b.type === "desc");
-          if (titleBlock && descBlock && titleBlock.text) {
+          if (titleBlock && descBlock && titleBlock.text && !descBlock.descYManual) {
             const titleHeight = calculateTextHeight(titleBlock.text, titleBlock.size, "'Montserrat', Arial, sans-serif", titleBlock.w);
             descBlock.y = Math.round(titleBlock.y + titleHeight + 8);
           }
@@ -1059,7 +1067,7 @@
         const needsDynamicDesc = bg === "static/2.png" || /^static\/5[a-d]\.png$/.test(bg);
         if (needsDynamicDesc && b.type === "title") {
           const descIdx = page.blocks.findIndex(bl => bl.type === "desc");
-          if (descIdx !== -1) {
+          if (descIdx !== -1 && !page.blocks[descIdx].descYManual) {
             const descBlock = page.blocks[descIdx];
             const titleHeight = calculateTextHeight(text, b.size, "'Montserrat', Arial, sans-serif", b.w);
             descBlock.y = Math.round(b.y + titleHeight + 8);
