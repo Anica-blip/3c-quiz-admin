@@ -28,7 +28,7 @@
       const BLOCK_TYPES = [
         // Default coordinates for 2.png
         { type: "title", label: "Title", w: 275, h: 60, x: 42, y: 214, size: 18, align: "left", color: "#ffffff", maxlen: 200, bold: true },
-        { type: "desc", label: "Description", w: 275, h: 186, x: 42, y: 283, size: 16, align: "left", color: "#ffffff", maxlen: 1000, bold: true },
+        { type: "desc", label: "Description", w: 275, h: 186, x: 42, y: 283, size: 14, align: "left", color: "#ffffff", maxlen: 1000, bold: true },
         { type: "question", label: "Question", w: 294, h: 60, x: 31, y: 109, size: 18, align: "left", color: "#ffffff", maxlen: 200, bold: true }
       ];
 
@@ -980,7 +980,7 @@
           type: type,
           label: tpl ? tpl.label : type.charAt(0).toUpperCase() + type.slice(1),
           text: "",
-          size: 18,
+          size: tpl ? tpl.size : 18,
           color: "#ffffff",
           align: "left",
           bold: true,
