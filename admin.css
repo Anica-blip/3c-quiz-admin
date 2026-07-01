@@ -48,13 +48,18 @@
   direction: ltr !important;
 }
 
+html {
+  height: 100%;
+}
+
 body {
   background: var(--bg);
   font-family: 'Outfit', 'Open Sans', sans-serif;
   margin: 0;
   padding: 0;
   color: var(--text-primary);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -68,7 +73,7 @@ body {
 #app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   background: var(--bg);
 }
 
