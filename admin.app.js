@@ -298,9 +298,18 @@
         // ── Step 1: Save full quiz JSON to R2 via worker ─────────────────────
         let r2Ok = false;
         try {
+          // The Worker only accepts saves from the signed-in owner, so send the login token
+          const { data: sessionData } = await supabaseClient.auth.getSession();
+          const accessToken = sessionData && sessionData.session && sessionData.session.access_token;
+          if (!accessToken) {
+            throw new Error("You are not signed in. Please log in again and retry.");
+          }
           const r2Res = await fetch(`${WORKER_URL}/quiz/${quiz_slug}`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${accessToken}`
+            },
             body: JSON.stringify({ id: qz.id, title: qz.title, pages: qz.pages }, null, 2)
           });
           if (!r2Res.ok) {
